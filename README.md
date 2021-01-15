@@ -1,0 +1,1 @@
+# Cov_19_specific_hazard
