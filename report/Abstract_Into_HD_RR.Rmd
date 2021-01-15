@@ -1,0 +1,74 @@
+---
+title: __\textbf{Analysis of mortality in patients with COVID-19 in Mexico City}__ 
+author: "Hirvin Azael Diaz Zepeda"
+date: "`r format(Sys.time(), '%d/%m/%Y')`"
+output:
+  pdf_document: default
+  html_document:
+    df_print: paged
+    includes:  
+      in_header: fix_fig.tex
+bibliography: bibliography.bib
+csl: the-lancet-infectious-diseases.csl
+header-includes: 
+- \usepackage{fancyhdr}
+- \usepackage{xcolor}
+- \usepackage{titling}
+- \usepackage{float}
+- \usepackage[spanish]{babel}
+- \usepackage{lipsum}
+- \usepackage{leading}
+- \usepackage{graphicx}
+- \pagestyle{fancy}
+- \floatstyle{plaintop}
+- \restylefloat{table}
+- \leading{18pt}
+- \pretitle{\begin{center}\LARGE\includegraphics[width=8cm]{logo-cide.jpg}\\[\bigskipamount]}
+- \posttitle{\end{center}}
+- \fancyhead[LE,RO]{}
+- \setlength\headheight{27pt}
+- \rhead{\includegraphics[width = 2.8cm]{logo-cide.jpg}}
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = T)
+library(dplyr)
+library(ggplot2)
+library(utils)
+library(scales)
+library(dampack)
+library(chron)
+library(tibble)
+library(knitr)
+library(pander)
+library(kableExtra)
+library(CEAutil)
+library(tidyr)
+library(dampack)
+library(readxl)
+library(readr)
+library(lme4)
+```
+
+
+# Abstract
+
+An increase of mortality it has been observed in practically all countries due to the COVID-19 pandemic.[poner datos y referencias]. The majority of previous work is focused on studying mortality in several populations and find the main risk factors associated with fatal outcome in people with COVID-19 leaving behind estimation of specific hazard associated to the infection. Excess mortality is a methodology that could help us to understand better the nature of COVID-19 sickness and produce estimates of the specific risk associated with the infection. Besides, it provides a framework to include the most important co-variables that affects the outcome.The aim of this study is determine excess mortality of COVID-19 confirmed cases in Mexico, a country with a very heterogeneous population in social, economic and cultural terms. Results "show" (invented data for these exercise) estimated specific hazard is .25, and increase of .12 compared with baseline hazard of mexican population. Populations with lower educational levels, overcrowded or rural have higher specific hazards. The foregoing constitutes relevant information to evaluate public strategies to control the COVID-19 pandemic.
+
+\newpage
+
+# Introduction
+
+On October 5, 2020, the Mexican government reported 779,127 accumulated cases of COVID-19 and 80,431 deaths[@SecretariadeSaluddeMexico2020]. This makes it the tenth country in the world in number of confirmed cases, fourth in reported deaths and the third in proportion of deaths with respect to total cases among the countries with the highest number of infections, only after Italy and the United Kingdom[@JHU_CSSEGIS]..
+
+The majority of previous work is focused on studying mortality in several populations and find the main risk factors associated with fatal outcome in people with COVID-19. However these conditions are usually associated with mortality in other similar illness and the specific risk associated with the infection is not determined. Studies of excess mortality and specific hazard from COVID-19 are limited and practically non-existent
+
+Excess mortality is a methodology that could help us to understand better the nature of COVID-19 infection and produce estimates of the specific risk associated with the infection. This methodology provides a framework that includes co-variables that affects the outcome, a very useful feature since it has been observed that mortality may vary with respect to demographic and socioeconomic conditions.The motivation of this work is determine excess mortality of COVID-19 confirmed cases in Mexico and the variation specifics hazards in several populations of the country. 
+
+Mexico has a very heterogeneous population in economic, social and ethnic terms, besides having some of the highest prevalence rates in comorbidities listed as risk factors in other studies. Due to the above, it is necessary to study mortality in confirmed cases to discover which are the main risk factors for the Mexican population and to see which are the population characteristics that can modify the impact of these factors.
+
+The results show estimated specific hazard is .25, and increase of .12 compared with baseline hazard of mexican population  Populations with lower educational levels, overcrowded or rural have higher specific hazards. These findings could be very valuable source of information for health policy designers to establish which populations should be a priority in mitigation and control strategies for the pandemic at a national level and as a source of information to evaluate several strategies.
+
+\newpage
+
+## References

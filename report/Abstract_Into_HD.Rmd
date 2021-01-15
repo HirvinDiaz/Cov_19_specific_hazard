@@ -1,0 +1,73 @@
+---
+title: __\textbf{Analysis of mortality in patients with COVID in Mexico City}__ 
+author: "Hirvin Azael Diaz Zepeda"
+date: "`r format(Sys.time(), '%d/%m/%Y')`"
+output:
+  pdf_document: default
+  html_document:
+    df_print: paged
+    includes:  
+      in_header: fix_fig.tex
+bibliography: bibliography.bib
+csl: the-lancet-infectious-diseases.csl
+header-includes: 
+- \usepackage{fancyhdr}
+- \usepackage{xcolor}
+- \usepackage{titling}
+- \usepackage{float}
+- \usepackage[spanish]{babel}
+- \usepackage{lipsum}
+- \usepackage{leading}
+- \usepackage{graphicx}
+- \pagestyle{fancy}
+- \floatstyle{plaintop}
+- \restylefloat{table}
+- \leading{18pt}
+- \pretitle{\begin{center}\LARGE\includegraphics[width=8cm]{logo-cide.jpg}\\[\bigskipamount]}
+- \posttitle{\end{center}}
+- \fancyhead[LE,RO]{}
+- \setlength\headheight{27pt}
+- \rhead{\includegraphics[width = 2.8cm]{logo-cide.jpg}}
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = T)
+library(dplyr)
+library(ggplot2)
+library(utils)
+library(scales)
+library(dampack)
+library(chron)
+library(tibble)
+library(knitr)
+library(pander)
+library(kableExtra)
+library(CEAutil)
+library(tidyr)
+library(dampack)
+library(readxl)
+library(readr)
+library(lme4)
+```
+
+
+# Abstract
+
+In various studies it has been found that age, diabetes, hypertension, kidney disease and cardiovascular diseases are usually the main risk factors associated with mortality in people with COVID-19. Also, it has been observed that the impact of these factors may vary with respect to demographic and socioeconomic conditions. Mexico has a very heterogeneous population in economic and ethnic terms, besides having some of the highest prevalence rates in comorbidities listed as risk factors in other studies. These characteristics are reflected in its capital, Mexico city, the region with the highest population density in the country and which concentrates the highest number of confirmed cases. The aim of this study is analyze mortality of confirmed cases in Mexico City, determine the main risk factors for the Mexican population and see what are the population characteristics that can modify the impact of these factors. The results "show" (invented data for these exercise) people who belong to age group older than 55 years, have diabetes, chronic kidney disease, hypertension, and have lower educational levels, live in in overcrowded regions are at higher risk of dying. The foregoing constitutes relevant information to prioritize populations in public strategies to control the COVID-19 pandemic.
+
+\newpage
+
+# Introduction
+
+On October 5, 2020, the Mexican government reported 779,127 accumulated cases of COVID-19 and 80,431 deaths[@SecretariadeSaluddeMexico2020]. This makes it the tenth country in the world in number of confirmed cases, fourth in reported deaths and the third in proportion of deaths with respect to total cases among the countries with the highest number of infections, only after Italy and the United Kingdom[@JHU_CSSEGIS]. Of all the territories of the Mexican Republic, Mexico City is the state that has the highest number of accumulated cases with 134,136 and the second in number of deaths with 9,954[@SecretariadeSaluddeMexico2020].
+
+The motivation of this work is to understand which are the main risk factors associated with a fatal outcome in people with COVID-19 in Mexico City and to understand the possible causes of the variation in mortality. In addition to the figures in sickness and deaths that the entity presents, the great population density, its political and economic importance in the country and the heterogeneity of the living conditions of its municipalities and localities, make it an ideal territory to analyze the mortality from COVID-19 in the Mexican population with a high degree of depth.
+
+In various studies, it has been found that age, diabetes, hypertension, kidney disease and cardiovascular diseases are usually the main risk factors associated with mortality in people with COVID-19, though these factors and their impact varies across different populations [@Baqui2020; @Mclaren2020].
+Mexico has a very heterogeneous population in economic, social and ethnic terms, besides having some of the highest prevalence rates in comorbidities listed as risk factors in other studies. Due to the above, it is necessary to study mortality in confirmed cases to discover which are the main risk factors for the Mexican population and to see which are the population characteristics that can modify the impact of these factors.
+
+The results show that the main risk factors is belonging to an age group older than 55 years, having diabetes, chronic kidney disease, hypertension and dentro debeing overweight. Within the analysis of sociodemographic and economic variables, it was found that people in places with a lower educational level, a higher population density and with lower income have a higher risk of dying (invented data for these excersise). These findings could be very valuable source of information for health policy designers to establish which populations should be a priority in mitigation and control strategies for the pandemic at a national level.
+
+\newpage
+
+## References

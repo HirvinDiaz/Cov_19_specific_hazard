@@ -1,0 +1,543 @@
+---
+title: __\textbf{Titulo provisional Análisis de la mortalidad en pacientes con COVID en la Ciudad de México.}__ 
+author: "Hirvin Azael Diaz Zepeda"
+date: "`r format(Sys.time(), '%d/%m/%Y')`"
+output:
+  pdf_document: default
+  html_document:
+    df_print: paged
+    includes:  
+      in_header: fix_fig.tex
+header-includes: 
+- \usepackage{fancyhdr}
+- \usepackage{xcolor}
+- \usepackage{titling}
+- \usepackage{float}
+- \usepackage[spanish]{babel}
+- \usepackage{lipsum}
+- \usepackage{leading}
+- \usepackage{graphicx}
+- \pagestyle{fancy}
+- \floatstyle{plaintop}
+- \restylefloat{table}
+- \leading{18pt}
+- \pretitle{\begin{center}\LARGE\includegraphics[width=8cm]{logo-cide.jpg}\\[\bigskipamount]}
+- \posttitle{\end{center}}
+- \fancyhead[LE,RO]{}
+- \setlength\headheight{27pt}
+- \rhead{\includegraphics[width = 2.8cm]{logo-cide.jpg}}
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = T)
+library(dplyr)
+library(ggplot2)
+library(utils)
+library(scales)
+library(dampack)
+library(chron)
+library(tibble)
+library(knitr)
+library(pander)
+library(kableExtra)
+library(CEAutil)
+library(tidyr)
+library(dampack)
+library(readxl)
+library(readr)
+library(lme4)
+```
+
+
+# Abstract
+
+In various studies it has been found that age, diabetes, hypertension, kidney disease and cardiovascular diseases are usually the main risk factors associated with mortality in people with COVID-19. Also, it has been observed that the impact of these factors may vary with respect to demographic and socioeconomic conditions. Mexico has a very heterogeneous population in economic and ethnic terms, besides having some of the highest prevalence rates in comorbidities listed as risk factors in other studies. These characteristics are reflected in its capital, Mexico city, the region with the highest population density in the country and which concentrates the highest number of confirmed cases. The aim of this study is analyze mortality of confirmed cases in Mexico City, determine the main risk factors for the Mexican population and see what are the population characteristics that can modify the impact of these factors. The results "show" (invented data for these excersise) people who belong to age group older than 55 years, have diabetes, chronic kidney disease, hypertension, and have lower educational levels, live in in overcrowded regions are at higher risk of dying. The foregoing constitutes relevant information to prioritize populations in public strategies to control the COVID-19 pandemic.
+
+\newpage
+
+# Introduction
+
+On October 5, 2020, the Mexican government reported 779,127 accumulated cases of COVID-19 and 80,431 deaths . This makes it the tenth country in the world in number of confirmed cases, fourth in reported deaths and the third in proportion of deaths with respect to total cases among the countries with the highest number of infections, only after Italy and the United Kingdom (. Of all the territories of the Mexican Republic, Mexico City is the state that has the highest number of accumulated cases with 134,136 and the second in number of deaths with 9,954
+
+The motivation of this work is to understand which are the main risk factors associated with a fatal outcome in people with COVID-19 in Mexico City and to understand the possible causes of the variation in mortality. In addition to the figures in sickness and deaths that the entity presents, the great population density, its political and economic importance in the country and the heterogeneity of the living conditions of its municipalities and localities, make it an ideal territory to analyze the mortality from COVID-19 in the Mexican population with a high degree of depth.
+
+In various studies, it has been found that age, diabetes, hypertension, kidney disease and cardiovascular diseases are usually the main risk factors associated with mortality in people with COVID-19, though these factors and their impact varies across different populations.
+Mexico has a very heterogeneous population in economic, social and ethnic terms, besides having some of the highest prevalence rates in comorbidities listed as risk factors in other studies. Due to the above, it is necessary to study mortality in confirmed cases to discover which are the main risk factors for the Mexican population and to see which are the population characteristics that can modify the impact of these factors.
+
+The results show that the main risk factors is belonging to an age group older than 55 years, having diabetes, chronic kidney disease, hypertension and dentro debeing overweight. Within the analysis of sociodemographic and economic variables, it was found that people in places with a lower educational level, a higher population density and with lower income have a higher risk of dying (invented data for these excersise). These findings could be very valuable source of information for health policy designers to establish which populations should be a priority in mitigation and control strategies for the pandemic at a national level.
+
+# Literature Review
+
+Understanding the reason for these high mortality rates has been one of the main concerns of the scientific community in the wake of the health crisis caused by SARS-CoV-2. When addressing this problem, a large amount of scientific production, both national and international, has focused on analyzing the main risk factors that can lead an infected person to need hospital care, intensive care and a fatal outcome. These factors may be common to various populations, but there are inherent variations in the characteristics of each community that are sometimes overlooked.
+
+In their study for Atlanta, United States, Killerby, Mrie E. et al (2020) find that being older than 65 years, suffering from diabetes, obesity, being a smoker, black and the patient being male increases your chances of hospitalization. However, Pitrelli et al (2020) do not find evidence that smoking is an important risk factor associated with hospitalization and instead points to the age groups older than 65 and 75 years, in conjunction with suffering from cardiovascular disease.
+
+In their meta-analysis of 14 retrospective studies in China on risk factors for critical and fatal cases of COVID-19, Zheng et al (2020) found that the male sex, an age greater than 65 years, and smoking accelerate the progression of the disease. Comorbidities such as diabetes, hypertension, cardiovascular disease, and respiratory disease are greater in critically ill patients with a fatal outcome. Chen et al (2020), in their study at the national level in China have similar results. It provides evidence that people older than 75 years and with cardiovascular disease, cerebrovascular disease and dyspnea are more likely to die.
+
+As can be seen, there are advances in the analysis of the factors that contribute to critical illness and mortality in people with COVID-19, however, it is necessary to continue carrying out similar studies in different places to observe which factors are constant and which factors are inherent. to the study regions. In the case of Mexico, Solís and Carreño (2020) observe that male patients over 70 years of age who suffer from diabetes, hypertension, obesity and chronic kidney disease have a higher risk of dying. They do not find that asthma, smoking, and cardiovascular disease increase the risk of fatal outcome. Parra-Bracamonte GM et al (2020) corroborate age (for people over 41 years of age), diabetes, hypertension, obesity and sex as the factors associated with a higher probability of dying and rule out that smoking is within these variables.
+
+Although these studies on the Mexican territory partially corroborate the evidence shown by other authors, both Solís and Carreño (2020) and Bracamonte GM et al (2020) ignore the variation in the incidence of these factors depending on the place of residence of the patients, ethnicity, level of education, socioeconomic level or quality of life in general. As research by Predo Baqui el al (2020) has shown, the probabilities of death in confirmed patients can be seen by cultural groups or places of residence and care: Their results show that brown and black Brazilians admitted to a hospital have a higher probability of dying than whites. In addition, it finds that the inhabitants of the northern states of the country have a higher risk of death than those of the southern states.
+
+Qian, Zhaozhi et al (2020) provide evidence about the variation in mortality depending on the place of care. In his study for the United Kingdom, he observed that the effect on mortality in infected patients in the Intensive Care Unit (ICU) varies with respect to the care center and even mentions that its effect is comparable to the strongest traditional predictors of mortality such as immunosuppression and chronic kidney disease. Although I agree with the importance of studying the variation in mortality in health care centers, I consider that it is just as important to study the causes of this variation, something that this work does not delve into.
+
+The aforementioned findings have very important implications in the way this phenomenon should be studied. The characteristics that relate the patients in addition to the infection and the groups or units that are formed from the singularities of each region must be taken into account. In the case of Mexico City, mortality probably presents important variations according to the place of residence of the patients. People in these groups share characteristics that affect the main risk factors: Socioeconomic level, access to services necessary to comply with essential protection measures, level of education, prevalence of the main comorbidities, human development index, population density, among others.
+
+# Descriptive Statistics 
+```{r, echo=FALSE, warning=FALSE}
+# *****************************************************************************
+#### 02_Load_data Mexico City####
+# *****************************************************************************
+CoV_zmvm <- read_csv("../data-raw/base-covid-sinave.csv")
+
+CoV_zmvm <- CoV_zmvm %>%
+  filter(cve_entidad_residencia == 9) %>% # Select only data from ten days before because of the lag 
+  filter(fecha_de_registro <= (max(CoV_zmvm$fecha_de_registro)-10)) 
+
+CoV_zmvm_test <- CoV_zmvm %>%
+  mutate(test = 1) %>% 
+  group_by(municipio_residencia) %>% 
+  summarise(test = sum(test)) %>% 
+  filter(test > 4)
+
+CoV_zmvm_p <- CoV_zmvm %>% # select only positives for SARS-CoV-2 
+  filter(resultado_definitivo == "SARS-CoV-2") %>% 
+  mutate(death = ifelse(is.na(fecha_defuncion),0,1)) %>% 
+  # Create death variable 1 if death, 0 if life
+  mutate(complete = 1) %>% 
+  mutate(month = ifelse(fecha_ingreso <= "2020-02-29", "Enero/Febrero",
+                        ifelse(fecha_ingreso > "2020-02-29" & fecha_ingreso <= "2020-03-31" , "Marzo",
+                               ifelse(fecha_ingreso > "2020-03-31" & fecha_ingreso <= "2020-04-30" , "Abril",
+                                      ifelse(fecha_ingreso > "2020-04-30" & fecha_ingreso <= "2020-05-31" , "Mayo",
+                                             ifelse(fecha_ingreso > "2020-05-31" & fecha_ingreso <= "2020-06-30" , "Junio",
+                                                    ifelse(fecha_ingreso > "2020-06-30" & fecha_ingreso <= "2020-07-31" , "Julio",
+                                                           ifelse(fecha_ingreso > "2020-07-31" & fecha_ingreso <= "2020-08-31" , "Agosto", "Septiembre")))))))) %>% 
+  mutate(Days_to_hosp = fecha_ingreso - fecha_inicio_sintomas) %>% 
+  mutate(Days_to_det = fecha_de_registro - fecha_inicio_sintomas) %>% 
+  left_join(CoV_zmvm_test, by = "municipio_residencia")
+
+
+CoV_zmvm_p$municipio_residencia <- as.factor(CoV_zmvm_p$municipio_residencia)
+CoV_zmvm_p$sector <- as.factor(CoV_zmvm_p$sector)
+```
+
+
+
+```{r, echo=FALSE}
+# *****************************************************************************
+#### Visualization Mortality by county ####
+# *****************************************************************************
+
+## CFR database
+CoV_zmvm_p_county <- CoV_zmvm_p %>%  
+  group_by(municipio_residencia) %>% 
+  summarise(tot_patients = sum(complete), tot_deaths = sum(death)) %>% 
+  mutate(cfr = tot_deaths/tot_patients) 
+
+CoV_zmvm_p_county$municipio_residencia <- 
+  as.factor(CoV_zmvm_p_county$municipio_residencia)
+CoV_zmvm_p_county <- CoV_zmvm_p_county[order(- CoV_zmvm_p_county$cfr),]
+CoV_zmvm_p_county$municipio_residencia <- 
+  ordered(CoV_zmvm_p_county$municipio_residencia, 
+                                               levels = 
+                                                 CoV_zmvm_p_county$municipio_residencia)
+
+#### Mortality by county
+ggplot(data = CoV_zmvm_p_county, 
+       aes(x = municipio_residencia,
+           y = cfr,
+           fill = municipio_residencia)) +
+  geom_col()+
+  theme(plot.title = element_text(face = "bold", 
+                                  size = 16,
+                                  family =),
+        plot.caption = element_text(hjust = 0,
+                                    colour = "#777777",
+                                    size = 9),
+        panel.background = element_rect(fill = "white", 
+                                        colour = "gray", 
+                                        size = 0.15, 
+                                        linetype = "solid"),
+        panel.grid.major = element_line(size = 0.15, 
+                                        linetype = 'solid',
+                                        colour = "gray"), 
+        axis.text.x = element_text(hjust = 1, angle = 45),
+        legend.position = "none", 
+        strip.background = element_rect(fill = "white"),
+        strip.text = element_text(face = "bold", 
+                                  size = 12)) +
+  labs(title = "CFR by county",
+       x = "County",
+       y = "CFR %")
+
+# *****************************************************************************
+#### Visualization county by test ####
+# *****************************************************************************
+CoV_zmvm_test$municipio_residencia <- 
+  as.factor(CoV_zmvm_test$municipio_residencia)
+CoV_zmvm_test <- CoV_zmvm_test[order(CoV_zmvm_test$test),]
+CoV_zmvm_test$municipio_residencia <- 
+  ordered(CoV_zmvm_test$municipio_residencia, 
+                                             levels = 
+                                             CoV_zmvm_test$municipio_residencia)
+#### Test by county
+ggplot(data = CoV_zmvm_test, 
+       aes(x = municipio_residencia,
+           y = test,
+           fill = municipio_residencia)) +
+  geom_col()+
+  theme(plot.title = element_text(face = "bold", 
+                                  size = 16,
+                                  family =),
+        plot.caption = element_text(hjust = 0,
+                                    colour = "#777777",
+                                    size = 9),
+        panel.background = element_rect(fill = "white", 
+                                        colour = "gray", 
+                                        size = 0.15, 
+                                        linetype = "solid"),
+        panel.grid.major = element_line(size = 0.15, 
+                                        linetype = 'solid',
+                                        colour = "gray"), 
+        axis.text.x = element_text(hjust = 1, angle = 45),
+        legend.position = "none", 
+        strip.background = element_rect(fill = "white"),
+        strip.text = element_text(face = "bold", 
+                                  size = 12)) +
+  labs(title = "Number of test by county",
+       x = "County",
+       y = "Test")
+
+# *****************************************************************************
+#### Correlation between CFR and number of test
+# *****************************************************************************
+Cov_county_corr <- CoV_zmvm_p %>% 
+  group_by(municipio_residencia) %>% 
+  summarise(tot_patients = sum(complete), tot_deaths = sum(death), 
+            tot_tests = mean(test)) %>% 
+  mutate(CFR = tot_deaths/tot_patients)
+
+cor(Cov_county_corr$tot_tests, Cov_county_corr$CFR) 
+
+
+
+
+
+# *****************************************************************************
+#### Visualization Mortality by county and Diabetes####
+# *****************************************************************************
+
+## CFR database
+
+CoV_zmvm_p_county_diabetes <- CoV_zmvm_p %>%  
+  filter(cve_entidad_residencia == 9) %>% 
+  filter(obesidad == "SI") %>% 
+  group_by(municipio_residencia) %>% 
+  summarise(tot_patients = sum(complete), tot_deaths = sum(death)) %>% 
+  mutate(cfr = tot_deaths/tot_patients) 
+
+CoV_zmvm_p_county_diabetes$municipio_residencia <- 
+  as.factor(CoV_zmvm_p_county_diabetes$municipio_residencia)
+CoV_zmvm_p_county_diabetes <- CoV_zmvm_p_county_diabetes[order(- CoV_zmvm_p_county_diabetes$cfr),]
+CoV_zmvm_p_county_diabetes$municipio_residencia <- 
+  ordered(CoV_zmvm_p_county_diabetes$municipio_residencia, 
+                                               levels = 
+                                                 CoV_zmvm_p_county_diabetes$municipio_residencia)
+
+#### Mortality by county
+ggplot(data = CoV_zmvm_p_county_diabetes, 
+       aes(x = municipio_residencia,
+           y = cfr,
+           fill = municipio_residencia)) +
+  geom_col()+
+  theme(plot.title = element_text(face = "bold", 
+                                  size = 16,
+                                  family =),
+        plot.caption = element_text(hjust = 0,
+                                    colour = "#777777",
+                                    size = 9),
+        panel.background = element_rect(fill = "white", 
+                                        colour = "gray", 
+                                        size = 0.15, 
+                                        linetype = "solid"),
+        panel.grid.major = element_line(size = 0.15, 
+                                        linetype = 'solid',
+                                        colour = "gray"), 
+        axis.text.x = element_text(hjust = 1, angle = 45),
+        legend.position = "none", 
+        strip.background = element_rect(fill = "white"),
+        strip.text = element_text(face = "bold", 
+                                  size = 12)) +
+  labs(title = "CFR by county for people with Diabetes",
+       x = "County",
+       y = "CFR %")
+
+# *****************************************************************************
+#### Visualization Mortality by county and Hipertension####
+# *****************************************************************************
+
+## CFR database
+
+CoV_zmvm_p_county_hipertension <- CoV_zmvm_p %>%  
+  filter(cve_entidad_residencia == 9) %>% 
+  filter(hipertension == "SI") %>% 
+  group_by(municipio_residencia) %>% 
+  summarise(tot_patients = sum(complete), tot_deaths = sum(death)) %>% 
+  mutate(cfr = tot_deaths/tot_patients) 
+
+CoV_zmvm_p_county_hipertension$municipio_residencia <- 
+  as.factor(CoV_zmvm_p_county_hipertension$municipio_residencia)
+CoV_zmvm_p_county_hipertension <- CoV_zmvm_p_county_hipertension[order(- CoV_zmvm_p_county_hipertension$cfr),]
+CoV_zmvm_p_county_hipertension$municipio_residencia <- 
+  ordered(CoV_zmvm_p_county_hipertension$municipio_residencia, 
+                                               levels = 
+                                                 CoV_zmvm_p_county_hipertension$municipio_residencia)
+
+#### Mortality by county
+ggplot(data = CoV_zmvm_p_county_hipertension, 
+       aes(x = municipio_residencia,
+           y = cfr,
+           fill = municipio_residencia)) +
+  geom_col()+
+  theme(plot.title = element_text(face = "bold", 
+                                  size = 16,
+                                  family =),
+        plot.caption = element_text(hjust = 0,
+                                    colour = "#777777",
+                                    size = 9),
+        panel.background = element_rect(fill = "white", 
+                                        colour = "gray", 
+                                        size = 0.15, 
+                                        linetype = "solid"),
+        panel.grid.major = element_line(size = 0.15, 
+                                        linetype = 'solid',
+                                        colour = "gray"), 
+        axis.text.x = element_text(hjust = 1, angle = 45),
+        legend.position = "none", 
+        strip.background = element_rect(fill = "white"),
+        strip.text = element_text(face = "bold", 
+                                  size = 12)) +
+  labs(title = "CFR by county for people with Hipertension",
+       x = "County",
+       y = "CFR %")
+
+# *****************************************************************************
+#### Visualization Mortality by county and Kidney disease ####
+# *****************************************************************************
+
+## CFR database
+
+CoV_zmvm_p_county_renal <- CoV_zmvm_p %>%  
+  filter(cve_entidad_residencia == 9) %>% 
+  filter(insuficiencia_renal_cronica == "SI") %>% 
+  group_by(municipio_residencia) %>% 
+  summarise(tot_patients = sum(complete), tot_deaths = sum(death)) %>% 
+  mutate(cfr = tot_deaths/tot_patients) 
+
+CoV_zmvm_p_county_renal$municipio_residencia <- 
+  as.factor(CoV_zmvm_p_county_renal$municipio_residencia)
+CoV_zmvm_p_county_renal <- CoV_zmvm_p_county_renal[order(- CoV_zmvm_p_county_renal$cfr),]
+CoV_zmvm_p_county_renal$municipio_residencia <- 
+  ordered(CoV_zmvm_p_county_renal$municipio_residencia, 
+                                               levels = 
+                                                 CoV_zmvm_p_county_renal$municipio_residencia)
+
+#### Mortality by county
+ggplot(data = CoV_zmvm_p_county_renal, 
+       aes(x = municipio_residencia,
+           y = cfr,
+           fill = municipio_residencia)) +
+  geom_col()+
+  theme(plot.title = element_text(face = "bold", 
+                                  size = 16,
+                                  family =),
+        plot.caption = element_text(hjust = 0,
+                                    colour = "#777777",
+                                    size = 9),
+        panel.background = element_rect(fill = "white", 
+                                        colour = "gray", 
+                                        size = 0.15, 
+                                        linetype = "solid"),
+        panel.grid.major = element_line(size = 0.15, 
+                                        linetype = 'solid',
+                                        colour = "gray"), 
+        axis.text.x = element_text(hjust = 1, angle = 45),
+        legend.position = "none", 
+        strip.background = element_rect(fill = "white"),
+        strip.text = element_text(face = "bold", 
+                                  size = 12)) +
+  labs(title = "CFR by county for people with K_Disease",
+       x = "County",
+       y = "CFR %")
+
+#******************************************************************************
+#### Visualization Mortality by county and Obesity ####
+# *****************************************************************************
+
+## CFR database
+
+CoV_zmvm_p_county_obesity <- CoV_zmvm_p %>%  
+  filter(cve_entidad_residencia == 9) %>% 
+  filter(obesidad == "SI") %>% 
+  group_by(municipio_residencia) %>% 
+  summarise(tot_patients = sum(complete), tot_deaths = sum(death)) %>% 
+  mutate(cfr = tot_deaths/tot_patients) 
+
+CoV_zmvm_p_county_obesity$municipio_residencia <- 
+  as.factor(CoV_zmvm_p_county_obesity$municipio_residencia)
+CoV_zmvm_p_county_obesity <- CoV_zmvm_p_county_obesity[order(- CoV_zmvm_p_county_obesity$cfr),]
+CoV_zmvm_p_county_obesity$municipio_residencia <- 
+  ordered(CoV_zmvm_p_county_obesity$municipio_residencia, 
+                                               levels = 
+                                                 CoV_zmvm_p_county_obesity$municipio_residencia)
+
+#### Mortality by county
+ggplot(data = CoV_zmvm_p_county_obesity, 
+       aes(x = municipio_residencia,
+           y = cfr,
+           fill = municipio_residencia)) +
+  geom_col()+
+  theme(plot.title = element_text(face = "bold", 
+                                  size = 16,
+                                  family =),
+        plot.caption = element_text(hjust = 0,
+                                    colour = "#777777",
+                                    size = 9),
+        panel.background = element_rect(fill = "white", 
+                                        colour = "gray", 
+                                        size = 0.15, 
+                                        linetype = "solid"),
+        panel.grid.major = element_line(size = 0.15, 
+                                        linetype = 'solid',
+                                        colour = "gray"), 
+        axis.text.x = element_text(hjust = 1, angle = 45),
+        legend.position = "none", 
+        strip.background = element_rect(fill = "white"),
+        strip.text = element_text(face = "bold", 
+                                  size = 12)) +
+  labs(title = "CFR by county for people with obesity",
+       x = "County",
+       y = "CFR %")
+
+
+#******************************************************************************
+#### Visualization Mortality by county and smoking ####
+# *****************************************************************************
+
+## CFR database
+
+CoV_zmvm_p_county_smoking <- CoV_zmvm_p %>%  
+  filter(cve_entidad_residencia == 9) %>% 
+  filter(tabaquismo == "SI") %>% 
+  group_by(municipio_residencia) %>% 
+  summarise(tot_patients = sum(complete), tot_deaths = sum(death)) %>% 
+  mutate(cfr = tot_deaths/tot_patients) 
+
+CoV_zmvm_p_county_smoking$municipio_residencia <- 
+  as.factor(CoV_zmvm_p_county_smoking$municipio_residencia)
+CoV_zmvm_p_county_smoking <- CoV_zmvm_p_county_smoking[order(- CoV_zmvm_p_county_smoking$cfr),]
+CoV_zmvm_p_county_smoking$municipio_residencia <- 
+  ordered(CoV_zmvm_p_county_smoking$municipio_residencia, 
+                                               levels = 
+                                                 CoV_zmvm_p_county_smoking$municipio_residencia)
+
+#### Mortality by county
+ggplot(data = CoV_zmvm_p_county_smoking, 
+       aes(x = municipio_residencia,
+           y = cfr,
+           fill = municipio_residencia)) +
+  geom_col()+
+  theme(plot.title = element_text(face = "bold", 
+                                  size = 16,
+                                  family =),
+        plot.caption = element_text(hjust = 0,
+                                    colour = "#777777",
+                                    size = 9),
+        panel.background = element_rect(fill = "white", 
+                                        colour = "gray", 
+                                        size = 0.15, 
+                                        linetype = "solid"),
+        panel.grid.major = element_line(size = 0.15, 
+                                        linetype = 'solid',
+                                        colour = "gray"), 
+        axis.text.x = element_text(hjust = 1, angle = 45),
+        legend.position = "none", 
+        strip.background = element_rect(fill = "white"),
+        strip.text = element_text(face = "bold", 
+                                  size = 12)) +
+  labs(title = "CFR by county for people with smoking",
+       x = "County",
+       y = "CFR %")
+
+
+
+```
+
+# Preliminary results
+
+The next models and test aim to check if there is variation between counties or localities ¿.
+
+```{r}
+# Simple model without random effects.
+model_0 <-glm(death ~ 1,
+              data = CoV_zmvm_p, 
+              family = binomial(link = "logit"))
+
+summary(model_0)
+
+
+# Model with counties as random effects.
+model_1 <- glmer(death ~ 1 + (1| municipio_residencia),
+              data = CoV_zmvm_p, 
+              family = binomial(link = "logit"))
+
+summary(model_1)
+
+AIC(model_0, model_1)
+BIC(model_0, model_1)
+
+# A multilevel approach could fit best our data since AIC and BIC have lower values
+# in a model with county as random effects.
+
+# Model with hospital sector as random effects
+model_2 <- glmer(death ~ 1 + (1| sector),
+              data = CoV_zmvm_p, 
+              family = binomial(link = "logit"))
+
+summary(model_2) 
+
+AIC(model_0, model_2)
+BIC(model_0, model_2)
+
+# Model 2 appears to be better model with sector as random effect
+AIC(model_1, model_2)
+BIC(model_1, model_2)
+
+```
+
+
+# Conclusions
+
+# Bibliography
+- Baqui, P., Bica, I., Marra, V., Ercole, A., & van der Schaar, M. (2020). Ethnic and regional variations in hospital mortality from COVID-19 in Brazil: a cross-sectional observational study. The Lancet Global Health, 8(8), e1018–e1026. https://doi.org/10.1016/S2214-109X(20)30285-0.
+
+- Birkenstein, C., & Graff, G. (2014). They Say/I Say: The Moves that Matter in Academic Writing. New York and London: W. W. Norton & Company.
+
+- Chen, R., Liang, W., Jiang, M., Guan, W., Zhan, C., Wang, T., Tang, C., Sang, L., Liu, J., Ni, Z., Hu, Y., Liu, L., Shan, H., Lei, C., Peng, Y., Wei, L., Liu, Y., Hu, Y., Peng, P., … Zhong, N. (2020). Risk Factors of Fatal Outcome in Hospitalized Subjects With Coronavirus Disease 2019 From a Nationwide Analysis in China. Chest, 158(1), 97–105. https://doi.org/10.1016/j.chest.2020.04.010
+
+- John Hopkins University & Medicine. (26 de 06 de 2020). COVID-19 Dashboard by the Center for Systems Science and Engineering (CSSE) at Johns Hopkins University (JHU). Obtenido de Coronavirus Resource Center: https://coronavirus.jhu.edu/map.html
+
+- Killerby, M. E., Link-Gelles, R., Haight, S. C., Schrodt, C. A., England, L., Gomes, D. J., ... & Blau, E. F. (2020). Characteristics associated with hospitalization among patients with COVID-19—Metropolitan Atlanta, Georgia, March–April 2020. Morbidity and Mortality Weekly Report, 69(25), 790.
+
+- Qian, Z., Alaa, A. M., van der Schaar, M., & Ercole, A. (2020). Between-centre differences for COVID-19 ICU mortality from early data in England. Intensive Care Medicine, 46(9), 1779–1780. https://doi.org/10.1007/s00134-020-06150-y
+
+- Parra-Bracamonte, Gaspar Manuel; Lopez-Villalobos, Nicolas; Parra-Bracamonte, Francisco E. Clinical characteristics and risk factors for mortality of patients with COVID-19 in a large data set from Mexico. Annals of epidemiology, 2020.
+
+- Secretaría de Salud. (08 de Octubre de 2020). Base de Datos COVID 19 en México. Obtenido de www.gob.mx/salud: https://datos.gob.mx/busca/dataset/informacion-referente-a-casos-covid-19-en-mexico
+
+- Solís, P., & Carreňo, H. (2020). COVID-19 Fatality and Comorbidity Risk Factors among Confirmed Patients in Mexico. MedRxiv, 2020.04.21.20074591. https://doi.org/10.1101/2020.04.21.20074591.
+
+- Petrilli, C. M., Jones, S. A., Yang, J., Rajagopalan, H., O’Donnell, L., Chernyak, Y., Tobin, K. A., Cerfolio, R. J., Francois, F., & Horwitz, L. I. (2020). Factors associated with hospital admission and critical illness among 5279 people with coronavirus disease 2019 in New York City: Prospective cohort study. The BMJ, 369. https://doi.org/10.1136/bmj.m1966
+
+- Zheng, Z., Peng, F., Xu, B., Zhao, J., Liu, H., Peng, J., ... & Ye, C. (2020). Risk factors of critical & mortal COVID-19 cases: A systematic literature review and meta-analysis. Journal of Infection.
+
+
