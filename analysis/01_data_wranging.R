@@ -3,13 +3,13 @@ library(readr)
 library(dplyr)
 
 # Import data base 14 - 11 - 2021
-Cov_14_01 <- read_csv("data-raw/210114COVID19MEXICO.csv")
+Cov_24_01 <- read_csv("data-raw/210124COVID19MEXICO.csv")
 
-Cov <- Cov_14_01 %>% 
-  select(2,6,10,11,12,13,14,16,33,40)
+Cov <- Cov_24_01 %>% 
+  select(2,6,10,11,12,13,14,16,33,36,40)
 
 Cov <- Cov %>% 
-  filter(RESULTADO_LAB == 1) %>% 
+  filter(CLASIFICACION_FINAL == 1 | CLASIFICACION_FINAL == 2 | CLASIFICACION_FINAL == 3) %>% 
   rename(ID = ID_REGISTRO,
          sex = SEXO,
          type = TIPO_PACIENTE,
@@ -21,7 +21,9 @@ Cov <- Cov %>%
          icu = UCI,
          result = RESULTADO_LAB,
   ) %>% 
-  filter(date_admission <= max(date_admission) - 10) %>% 
+  filter(date_admission <= max(date_admission) - 7) %>% 
   mutate(state = ifelse(is.na(date_death), 0, 1))
 
-save(Cov, file = "data/cov_14_01.Rdata")
+save(Cov, file = "data/cov_24_01.Rdata")
+
+
