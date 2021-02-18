@@ -1204,3 +1204,46 @@ ggplot(filter(df_hazards_hos_res,
 ggsave(paste0("figs/Hazard_hos_resitalized_age_groups_n",
               format(Sys.Date(), "%F"), ".png"), 
        width = 7, height = 5)
+
+
+ggplot(filter(df_hazards_hos_res,
+              Type == "COVID-19"), 
+       aes(x = time, 
+           y = log(Hazard),
+           color = Type)) +
+  geom_line(size = 0.8)+
+  geom_line(data = filter(df_hazards_hos_res,
+                          Type == "Observed"), 
+            aes(x = time, 
+                y = log(Hazard)),
+            alpha = 0.4, 
+            size = 2)+
+  facet_wrap(~age_group, ncol = 2) +
+  theme(plot.title = element_text(face = "bold", 
+                                  size = 14,
+                                  family =),
+        plot.caption = element_text(hjust = 0,
+                                    colour = "#777777",
+                                    size = 10),
+        panel.background = element_rect(fill = "white", 
+                                        colour = "gray", 
+                                        size = 0.15, 
+                                        linetype = "solid"),
+        panel.grid.major = element_line(size = 0.15, 
+                                        linetype = 'solid',
+                                        colour = "#6e6866"))+
+  scale_x_continuous(breaks = number_ticks(4))+
+  scale_y_continuous(breaks = number_ticks(3))+
+  # axis.text.x = element_text(angle = 90, hjust = 0))+
+  scale_color_manual(values=c ("#120d0c", "#e32402", "#02ebdb")) +
+  labs(title = "Specific Covid-19, background population and observed hazard",
+       x = " ",
+       y = " ",
+       color = "Hazard")
+
+ggsave(paste0("figs/Hazard_hos_resitalized_age_groups_n",
+              format(Sys.Date(), "%F"), ".png"), 
+       width = 7, height = 5)
+
+
+  
