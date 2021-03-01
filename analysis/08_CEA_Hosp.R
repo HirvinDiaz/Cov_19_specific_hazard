@@ -17,35 +17,43 @@ library(readr)
 library(readxl)
 library(lubridate)
 
-#### Load data ####
+# Load data 
 load("data/df_hazards_ICU_hosp.Rdata")
 
-#### Load ratetable ####
+# Load ratetable 
 load("data/rate_mx.Rdata")
 
 # Public Data base of suspected people with COVID-19 
 load("data/cov_09_02.Rdata") 
 
-#### Create df with probabilities ####
-d_p_HD <- df_hazards_ICU_hosp %>% 
-  filter(Type != "Observed")
+# Load functions for microsimulation
+source("R/Functions.R")
 
-d_p_HD <- reshape(d_p_HD,
+#### Create df with probabilities ####
+d_h_HD_hosp <- df_hazards_ICU_hosp %>% 
+  filter(Type != "Observed") %>% 
+  filter(state == "Hosp")
+
+d_h_HD_hosp <- reshape(d_h_HD_hosp,
                   idvar = c("time","group", "sex", "state"),
                   timevar = "Type",
                   direction = "wide")
 
-d_p_HD <- d_p_HD %>% 
+Remd_effect <- 0.73
+Remd_Ba_effect <- 0.65
+
+d_h_HD_hosp <- d_h_HD_hosp %>% 
+  mutate(haz_Remd = Hazard.Covid_19*Remd_effect) %>% 
+  mutate(haz_Remd_Ba = haz_Remd*Remd_Ba_effect)
+  
+d_p_HD_hosp <- d_h_HD_hosp %>% 
   mutate(p_dCoV = 1 - exp(-Hazard.Covid_19)) %>% 
   mutate(p_dPop = 1 - exp(- Hazard.Population)) %>% 
+  mutate(p_dCoV_Remd = 1 - exp(- haz_Remd)) %>% 
+  mutate(p_dCoV_Remd_Ba = 1 - exp(- haz_Remd_Ba)) %>% 
   arrange(group, time)%>% 
-  select(c("time", "group", "sex","state", "p_dCoV", "p_dPop"))
-
-d_p_HD_hosp <- d_p_HD %>% 
-  filter(state == "Hosp")
-
-d_p_HD_icu <- d_p_HD %>% 
-  filter(state == "ICU")
+  select(c("time", "group", "sex", "p_dCoV", "p_dPop", "p_dCoV_Remd", 
+           "p_dCoV_Remd_Ba"))
 
 #### Create Cohorts ####
 x <- as.Date(max(Cov$date_admission), format = "%Y-%m-%d")
@@ -75,11 +83,10 @@ Cohort <- Cohort %>%
   mutate(time = 0)
 
 Cohort_hosp <- Cohort %>% 
-  filter(state == "Hosp")
+  mutate(state = "Hosp")
 
 Cohort_ICU <- Cohort %>% 
   filter(state == "ICU")
-
 
 #### CEA Hospitalized ####
 #### Parameters set ####
@@ -95,22 +102,173 @@ v_dwe <- 1 / (1 + d_e) ^ (0:n_t)
 
 ## Costs and utilities inputs (in MX pesos)
 # Average cost for patients that require hospitalized care
-c_hosp     <- ((35000 + 50000 + 70000 + 80000)/4)
-c_sCov     <- c_hosp + c_amb 
-c_dCov     <- 0       # cost of remaining one cycle Dead
-c_dPop     <- 0       # cost of remaining one cycle Dead
-c_Trt      <- 0
-# Mean QALD (Quality Adjusted Life Days) loss.
-m_QALD     <-  2.5
-u_sCov     <- (100 - m_QALD)/100    # utility when Sick 
-u_dCov     <- 0                     # utility when Dead
-u_dPop     <- 0                     # utility when Dead
+c_hosp     <- 8141.63  # cost of remaining one cycle hospitalized 
+c_resp     <- 18954.18 # cost of remaining one cycle intubated
+c_remd     <- 8331.85  # cost of Remdesivir Treatment for one Cycle
+c_Bari     <- 3672     # cost of Baricitinib Treatment for one Cycle
+c_dead     <- 0        # cost of remaining one cycle Dead
+
+# Life Days outcome.
+# m_QALD     <-  2.5
+l_sick     <- 1 # utility when Sick 
+l_dead     <- 0 # utility when Dead
 
 # Convert data frame to a data table for efficiency
-dt_p_CoV <- data.table(d_p_HD)
+dt_p_CoV <- data.table(d_p_HD_hosp)
 
 # set the data table to be indexed by age, day, sex and ICU
-setkey(dt_p_CoV, group, time, sex, state)
+setkey(dt_p_CoV, group, time, sex)
 
 # Create data frame of population from cohort. All begin in day 0
-df_X <- Cohort
+df_X <- Cohort_hosp
+
+Probs <- function(v_M_t, df_X, t, Trt = FALSE) { # t <- 1
+  # Arguments:
+  # v_M_t: health state occupied at cycle t (character variable)
+  # df_X: data frame with individual characteristics data 
+  # v_Ts: vector with the duration of being sick
+  # t: cycle
+  # transition probabilities for that cycle
+  # create matrix of state transition probabilities
+  m_p_t           <- matrix(0, nrow = n_states, ncol = n_i)  
+  # give the state names to the rows
+  rownames(m_p_t) <-  v_names_states
+  # Lookup baseline probability of dying from Covid-19 or other causes  
+  if (Trt == "Remd"){
+    p_die_CoV_all <- dt_p_CoV[.(df_X$group, df_X$time + t, df_X$sex), p_dCoV_Remd] 
+  } else if (Trt == "Remd_Ba"){
+    p_die_CoV_all <- dt_p_CoV[.(df_X$group, df_X$time + t, df_X$sex), p_dCoV_Remd_Ba] 
+  } else if (Trt == "None" | Trt == FALSE){
+    p_die_CoV_all <- dt_p_CoV[.(df_X$group, df_X$time + t, df_X$sex), p_dCoV] 
+  } else {
+    message("Choose a treatment within the options")
+  }
+  p_die_Pop_all <- dt_p_CoV[.(df_X$group, df_X$time + t, df_X$sex), p_dPop] 
+  
+  p_die_CoV     <- p_die_CoV_all[v_M_t == "Cov19+"]  
+  p_die_Pop     <- p_die_Pop_all[v_M_t == "Cov19+"] 
+  # update m_p_t with the appropriate probabilities   
+  # transition probabilities when healthy
+  m_p_t[, v_M_t == "Cov19+"] <- rbind(1 - (p_die_CoV + p_die_Pop), p_die_CoV, p_die_Pop)    
+  # transition probabilities when sick 
+  m_p_t[, v_M_t == "CoV19_Dead"] <- rbind(0, 1 ,0)
+  # transition probabilities when sicker 
+  m_p_t[, v_M_t == "O_Causes_Dead"] <- rbind(0, 0, 1)
+  return(t(m_p_t))
+}     
+
+Costs <- function (v_M_t, Trt = FALSE) {
+  # v_M_t: current health state
+  c_t <- c()
+  if (Trt == "Remd"){
+    c_t[v_M_t == "Cov19+"]  <- c_hosp + c_remd
+  } else if (Trt == "Remd_Ba"){
+    c_t[v_M_t == "Cov19+"]  <- c_hosp + c_remd + c_Bari
+  } else if (Trt == "None" | Trt == FALSE){
+    c_t[v_M_t == "Cov19+"]  <- c_hosp 
+  } else {
+    message("Choose a treatment within the options")
+  }
+  # costs accrued by being Sick this cycle
+  c_t[v_M_t == "CoV19_Dead"] <- c_dead  # costs accrued by being sick this cycle
+  c_t[v_M_t == "O_Causes_Dead"] <- c_dead  # costs accrued by being sicker this cycle
+  return(c_t)  # return costs accrued this cycle
+}
+
+# Switch, leer cual es el argumento de treatment.
+# Hacerlo con vectores, para utilizarlo con multiplicadores.
+# Generar las distribuciones, con mis intervalos de confianza, en el espacio logartmico 
+# Derivamos los errores estandar. Saco el lower y el upper bound, 
+
+Effs <- function (v_M_t) {
+  # v_M_t: current health state
+  q_t <- c() 
+  q_t[v_M_t == "Cov19+"] <- l_sick   
+  q_t[v_M_t == "CoV19_Dead"] <- l_dead     
+  q_t[v_M_t == "O_Causes_Dead"]  <- l_dead     
+  return(q_t)  # return the LDs accrued this cycle
+}
+
+#### 04.2 Dynamic characteristics 
+# These are just starting conditions - they will change with the simulation
+v_M_init  <- rep("Cov19+", n_i)       # everyone begins in the sick state
+
+MicroSim <- function(n_i, df_X, Trt = FALSE) { #t <- 1
+  set.seed(02021989)
+  m_M <- m_C <- m_E <-  matrix(NA, nrow = n_i, ncol = n_t + 1, 
+                               dimnames = list(paste("ind"  , 1:n_i, sep = " "), 
+                                               paste("cycle", 0:n_t, sep = " "))) 
+  
+  m_M[, 1] <- v_M_init          # initial health state
+  m_C[, 1] <- Costs(m_M[, 1])   # costs accrued during cycle 0
+  m_E[, 1] <- Effs(m_M[, 1])    # QALYs accrued during cycle 0
+  
+  # open a loop for time running cycles 1 to n_t 
+  for (t in 1:n_t) { # t <- 1
+    # calculate the transition probabilities for the cycle based on health state t
+    m_P <- Probs(v_M_t = m_M[, t], df_X, t = t, Trt = Trt) 
+    # sample the current health state and store that state in matrix m_M
+    m_M[, t + 1]  <- samplev(m_P, 1)    
+    # calculate costs per individual during cycle t + 1
+    m_C[, t + 1]  <- Costs(m_M[, t + 1], Trt = Trt)  
+    # calculate QALYs per individual during cycle t + 1
+    m_E[, t + 1]  <- Effs(m_M[, t + 1])  
+    
+    # Display simulation progress
+    if(t/(n_t/10) == round(t/(n_t/10), 0)) { # display progress every 10%
+      cat('\r', paste(t/n_t * 100, "% done", sep = " "))
+    }
+    
+  } # close the loop for the time points 
+  
+  if (Trt == "Remd"){
+    m_C[, 11:n_t + 1]  <- m_C[, 11:n_t + 1] - c_remd
+  } else if (Trt == "Remd_Ba"){
+    m_C[, 11:n_t + 1]  <- m_C[, 11:n_t + 1] - c_remd
+    m_C[, 15:n_t + 1]  <- m_C[, 15:n_t + 1] - c_Bari
+  } else {
+    m_C <- m_C
+  }
+  
+  m_C[m_C < 0] <- 0
+  
+  # calculate  
+  tc <- m_C %*% v_dwc    # total (discounted) cost per individual
+  te <- m_E              # total LDs per individual 
+  tc_hat <- mean(tc)     # average (discounted) cost 
+  te_hat <- mean(te)     # average LDs per individual
+  tc_sum <- sum(tc)      # sum (discounted) cost
+  te_sum <- sum(te)      # sum LDs per individual
+  
+  # store the results from the simulation in a list
+  results <- list(m_M = m_M, 
+                  m_C = m_C, 
+                  m_E = m_E, 
+                  tc = tc , 
+                  te = te, 
+                  tc_hat = tc_hat, 
+                  te_hat = te_hat,
+                  tc_sum = tc_sum, 
+                  te_sum = te_sum )   
+  
+  return(results)  # return the results
+  
+} # end of the MicroSim function  
+
+outcomes_rb <- MicroSim(n_i, df_X, Trt = FALSE)
+
+results_rb  <- data.frame("Total Cost" = outcomes_rb$tc_hat, 
+                          "Total LDs" = outcomes_rb$te_hat)
+
+outcomes_rb$te_sum/289914
+
+c_H   = rgamma(n_sim, shape = 1067.43, scale = 100)/10
+hist(c_H)
+c_Bari <- rgamma(n_sim, shape = 483, scale = 10)
+c_Bari     <- 3672
+
+
+
+
+hist(c_H)
+

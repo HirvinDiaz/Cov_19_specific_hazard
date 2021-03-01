@@ -722,7 +722,7 @@ ggsave(paste0("figs/sphazard by month",
 x <- as.Date(max(Cov$date_admission), format = "%Y-%m-%d")
 
 Covid_rr_hosp <- Cov %>% 
-  filter(type == 2 & intubated != 1) %>% 
+  filter(type == 2) %>% 
   filter(age >= 45) %>% 
   select(c("sex", "age", "date_admission", "date_death", "date_symptoms", "state"))%>% 
   mutate(sex = ifelse(sex == 1, 2, 1))%>% # recode 1 is male and 2 female
