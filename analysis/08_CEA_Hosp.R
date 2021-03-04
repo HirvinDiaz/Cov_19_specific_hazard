@@ -98,7 +98,7 @@ d_c              <- d_e <- 0.0082 # daily discount rates
 # calculate discount weights for costs for each cycle based on discount rate d_c
 v_dwc <- 1 / (1 + d_c) ^ (0:n_t) 
 # calculate discount weights for effectiveness for each cycle based on discount? 
-v_dwe <- 1 / (1 + d_e) ^ (0:n_t)
+v_dwe <- 1 / (1) ^ (0:n_t)
 
 ## Costs and utilities inputs (in MX pesos)
 # Average cost for patients that require hospitalized care
@@ -234,7 +234,7 @@ MicroSim <- function(n_i, df_X, Trt = FALSE) { #t <- 1
   
   # calculate  
   tc <- m_C %*% v_dwc    # total (discounted) cost per individual
-  te <- m_E              # total LDs per individual 
+  te <- m_E %*% v_dwe    # total LDs per individual 
   tc_hat <- mean(tc)     # average (discounted) cost 
   te_hat <- mean(te)     # average LDs per individual
   tc_sum <- sum(tc)      # sum (discounted) cost
@@ -260,15 +260,7 @@ outcomes_rb <- MicroSim(n_i, df_X, Trt = FALSE)
 results_rb  <- data.frame("Total Cost" = outcomes_rb$tc_hat, 
                           "Total LDs" = outcomes_rb$te_hat)
 
-outcomes_rb$te_sum/289914
-
-c_H   = rgamma(n_sim, shape = 1067.43, scale = 100)/10
-hist(c_H)
-c_Bari <- rgamma(n_sim, shape = 483, scale = 10)
-c_Bari     <- 3672
-
-
-
+View(outcomes_rb$te)
 
 hist(c_H)
 

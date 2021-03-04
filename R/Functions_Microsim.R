@@ -1,14 +1,16 @@
 #### Functions for Cost-Effectiveness Analysis ####
 
+source("R/samplev.R")
+
 updt_prm_list <- function(l_params_all, params_updated){
   if (typeof(params_updated)!="list"){
-    params_updated <- split(unname(params_updated),names(params_updated)) #converte the named vector to a list
+    params_updated <- split(unname(params_updated),names(params_updated)) 
   }
   l_params_all <- modifyList(l_params_all, params_updated) #update the values
   return(l_params_all)
 }
 
-Probs <- function(v_M_t, df_X, t, Trt = FALSE) { # t <- 1
+Probs <- function(v_M_t, df_X, t, n_states, n_i, Trt = FALSE) { # t <- 1
   m_p_t           <- matrix(0, nrow = n_states, ncol = n_i)  
   # give the state names to the rows
   rownames(m_p_t) <-  v_names_states
@@ -35,13 +37,14 @@ Probs <- function(v_M_t, df_X, t, Trt = FALSE) { # t <- 1
   return(t(m_p_t))
 }     
 
-Costs <- function (v_M_t, Trt = FALSE) {
+Costs <- function (l_params, v_M_t, Trt = FALSE) {
+  with(as.list(l_params),{
   # v_M_t: current health state
   c_t <- c()
   if (Trt == "Remd"){
     c_t[v_M_t == "Cov19+"]  <- c_hosp + c_remd
   } else if (Trt == "Remd_Ba"){
-    c_t[v_M_t == "Cov19+"]  <- c_hosp + c_remd + c_Bari
+    c_t[v_M_t == "Cov19+"]  <- c_hosp + c_remd + c_bari
   } else if (Trt == "None" | Trt == FALSE){
     c_t[v_M_t == "Cov19+"]  <- c_hosp 
   } else {
@@ -51,25 +54,29 @@ Costs <- function (v_M_t, Trt = FALSE) {
   c_t[v_M_t == "CoV19_Dead"] <- c_dead  # costs accrued by being sick this cycle
   c_t[v_M_t == "O_Causes_Dead"] <- c_dead  # costs accrued by being sicker this cycle
   return(c_t)  # return costs accrued this cycle
+  }
+  )
 }
 
-Effs <- function (v_M_t) {
+Effs <- function (l_params, v_M_t) {
+  with(as.list(l_params),{
   # v_M_t: current health state
   q_t <- c() 
   q_t[v_M_t == "Cov19+"] <- l_sick   
   q_t[v_M_t == "CoV19_Dead"] <- l_dead     
   q_t[v_M_t == "O_Causes_Dead"]  <- l_dead     
   return(q_t)  # return the LDs accrued this cycle
+  }
+  )
 }
 
-CEA_microsim <- function(l_params, n_i, df_X, df_h, Trt = FALSE) { 
-  with(as.list(l_params_all), {
+CEA_microsim <- function(l_params, df_X, df_h, Trt = FALSE) { 
+  with(as.list(l_params), {
        set.seed(02021989)
        
+       d_h_HD_hosp <- df_h # Data frame with specific hazards
        Remd_effect <- Remd_effect
        Remd_Ba_effect <- Remd_Ba_effect
-       
-       d_h_HD_hosp <- df_h # Data frame with specific hazards
        
        # Transform hazards to transition probabilities
        d_h_HD_hosp <- d_h_HD_hosp %>% 
@@ -91,6 +98,43 @@ CEA_microsim <- function(l_params, n_i, df_X, df_h, Trt = FALSE) {
        # set the data table to be indexed by age, day, sex and ICU
        setkey(dt_p_CoV, group, time, sex)
        
+       n_i              <- length(df_X$sex)
+       n_t              <- 50 # time horizon, 50 days
+       v_names_states   <- c("Cov19+", "CoV19_Dead", "O_Causes_Dead") # state names
+       n_states         <- length(v_names_states)   # number of states
+       
+       # vector with discount weights for costs
+       d_c   <- 0.0082 # daily discount rates 
+       v_dwc <- 1 / (1 + d_c) ^ (0:n_t) 
+       v_dwe <- 1 / (1) ^ (0:n_t) 
+       
+       Probs <- function(v_M_t, df_X, t, Trt = FALSE) { # t <- 1
+         m_p_t           <- matrix(0, nrow = n_states, ncol = n_i)  
+         # give the state names to the rows
+         rownames(m_p_t) <-  v_names_states
+         # Lookup baseline probability of dying from Covid-19 or other causes  
+         if (Trt == "Remd"){
+           p_die_CoV_all <- dt_p_CoV[.(df_X$group, df_X$time + t, df_X$sex), p_dCoV_Remd] 
+         } else if (Trt == "Remd_Ba"){
+           p_die_CoV_all <- dt_p_CoV[.(df_X$group, df_X$time + t, df_X$sex), p_dCoV_Remd_Ba] 
+         } else if (Trt == "None" | Trt == FALSE){
+           p_die_CoV_all <- dt_p_CoV[.(df_X$group, df_X$time + t, df_X$sex), p_dCoV] 
+         } else {
+           message("Choose a treatment within the options")
+         }
+         p_die_Pop_all <- dt_p_CoV[.(df_X$group, df_X$time + t, df_X$sex), p_dPop] 
+         
+         p_die_CoV     <- p_die_CoV_all[v_M_t == "Cov19+"]  
+         p_die_Pop     <- p_die_Pop_all[v_M_t == "Cov19+"] 
+         # transition probabilities when healthy
+         m_p_t[, v_M_t == "Cov19+"] <- rbind(1 - (p_die_CoV + p_die_Pop), p_die_CoV, p_die_Pop)    
+         # transition probabilities when sick 
+         m_p_t[, v_M_t == "CoV19_Dead"] <- rbind(0, 1 ,0)
+         # transition probabilities when sicker 
+         m_p_t[, v_M_t == "O_Causes_Dead"] <- rbind(0, 0, 1)
+         return(t(m_p_t))
+       }     
+       
        m_M <- m_C <- m_E <-  matrix(NA, nrow = n_i, ncol = n_t + 1, 
                                     dimnames = list(paste("ind"  , 
                                                           1:n_i, sep = " "), 
@@ -98,8 +142,8 @@ CEA_microsim <- function(l_params, n_i, df_X, df_h, Trt = FALSE) {
                                                           0:n_t, sep = " "))) 
        v_M_init  <- rep("Cov19+", n_i)
        m_M[, 1] <- v_M_init          # initial health state
-       m_C[, 1] <- Costs(m_M[, 1])   # costs accrued during cycle 0
-       m_E[, 1] <- Effs(m_M[, 1])    # QALYs accrued during cycle 0
+       m_C[, 1] <- Costs(l_params, m_M[, 1])   # costs accrued during cycle 0
+       m_E[, 1] <- Effs(l_params, m_M[, 1])    # LDs accrued during cycle 0
        
        # open a loop for time running cycles 1 to n_t 
        for (t in 1:n_t) { # t <- 1
@@ -108,14 +152,9 @@ CEA_microsim <- function(l_params, n_i, df_X, df_h, Trt = FALSE) {
          # sample the current health state and store that state in matrix m_M
          m_M[, t + 1]  <- samplev(m_P, 1)    
          # calculate costs per individual during cycle t + 1
-         m_C[, t + 1]  <- Costs(m_M[, t + 1], Trt = Trt)  
+         m_C[, t + 1]  <- Costs(l_params, m_M[, t + 1], Trt = Trt)  
          # calculate QALYs per individual during cycle t + 1
-         m_E[, t + 1]  <- Effs(m_M[, t + 1])  
-         
-         # Display simulation progress
-         if(t/(n_t/10) == round(t/(n_t/10), 0)) { # display progress every 10%
-           cat('\r', paste(t/n_t * 100, "% done", sep = " "))
-         }
+         m_E[, t + 1]  <- Effs(l_params, m_M[, t + 1])  
          
        } # close the loop for the time points 
        
@@ -123,7 +162,7 @@ CEA_microsim <- function(l_params, n_i, df_X, df_h, Trt = FALSE) {
          m_C[, 11:n_t + 1]  <- m_C[, 11:n_t + 1] - c_remd
        } else if (Trt == "Remd_Ba"){
          m_C[, 11:n_t + 1]  <- m_C[, 11:n_t + 1] - c_remd
-         m_C[, 15:n_t + 1]  <- m_C[, 15:n_t + 1] - c_Bari
+         m_C[, 15:n_t + 1]  <- m_C[, 15:n_t + 1] - c_bari
        } else {
          m_C <- m_C
        }
@@ -132,7 +171,7 @@ CEA_microsim <- function(l_params, n_i, df_X, df_h, Trt = FALSE) {
        
        # calculate  
        tc <- m_C %*% v_dwc    # total (discounted) cost per individual
-       te <- m_E              # total LDs per individual 
+       te <- m_E %*% v_dwe    # total LDs per individual 
        tc_hat <- mean(tc)     # average (discounted) cost 
        te_hat <- mean(te)     # average LDs per individual
        tc_sum <- sum(tc)      # sum (discounted) cost
@@ -140,66 +179,44 @@ CEA_microsim <- function(l_params, n_i, df_X, df_h, Trt = FALSE) {
        
        # store the results from the simulation in a list
        results <- list(m_M = m_M, 
-                       tc = tc , 
-                       te = te)   
-       
+                       tc_hat = tc_hat, 
+                       te_hat = te_hat,
+                       tc_sum = tc_sum,
+                       te_sum = te_sum)   
+                      
        return(results)  # return the results
   
      } # end of the MicroSim function  
   )
 }
 
-CEA_function <- function(l_params_all, n_wtp = 10267*22.10){ # User defined
-  with(as.list(l_params_all), {
+CEA_function <- function(l_params, df_X, df_h, n_wtp = 10267*2*22.10){ # User defined
+  with(as.list(l_params), {
     ## Create discounting vectors
-    v_dwc <- 1 / ((1 + d_e) ^ (0:(n_t))) # vector with discount weights for costs
-
+    v_names_str = c("No Treatment", "Remdesivir", "Remdesivir & Bariticinib")
     ## Run STM model at a parameter set for each intervention
-    Res_model_no_trt <- decision_model(l_params_all = l_params_all)
-    Res_model_remd   <- decision_model(l_params_all = l_params_all)
-    Res_model_remd_ba   <- decision_model(l_params_all = l_params_all)
-    
-    ## Cohort trace by treatment
-    m_M_no_trt  <- Res_model_no_trt$m_M # No treatment
-    m_M_remd     <- Res_model_remd$m_M    # Treatment
-    m_M_remd_ba     <- Res_model_remd_ba$m_M    # Treatment
-    
-    
-    ## Vectors with costs and utilities by treatment
-    v_u_no_trt  <- c(u_H, u_S1, u_S2, u_D)
-    v_u_trt     <- c(u_H, u_trt, u_S2, u_D)
-    
-    v_c_no_trt  <- c(c_H, c_S1, c_S2, c_D)
-    v_c_trt     <- c(c_H, c_S1 + c_trt, c_S2 + c_trt, c_D)
-    
-    ## Mean Costs and QALYs for Treatment and NO Treatment
-    v_tu_no_trt <- m_M_no_trt %*% v_u_no_trt
-    v_tu_trt    <- m_M_trt %*% v_u_trt
-    
-    v_tc_no_trt <- m_M_no_trt %*% v_c_no_trt
-    v_tc_trt    <- m_M_trt %*% v_c_trt
-    
-    ## Total discounted mean Costs and QALYs
-    tu_d_no_trt <- t(v_tu_no_trt) %*% v_dwe 
-    tu_d_trt    <- t(v_tu_trt) %*% v_dwe
-    
-    tc_d_no_trt <- t(v_tc_no_trt) %*% v_dwc
-    tc_d_trt    <- t(v_tc_trt)    %*% v_dwc
-    
-    ## Vector with total discounted mean Costs and QALYs
-    v_tc_d      <- c(tc_d_no_trt, tc_d_trt)
-    v_tu_d      <- c(tu_d_no_trt, tu_d_trt)
+    Res_model          <- CEA_microsim(l_params = l_params, df_X,
+                                     df_h, Trt = FALSE)
+    Res_model_remd     <- CEA_microsim(l_params = l_params, df_X,
+                                     df_h, Trt = "Remd")
+    Res_model_remd_ba  <- CEA_microsim(l_params = l_params, df_X, 
+                                     df_h, Trt = "Remd_Ba")
+
+    ## Vector with total discounted mean Costs and LDs
+    v_tc_d      <- c(Res_model$tc_hat, Res_model_remd$tc_hat, 
+                     Res_model_remd_ba$tc_hat)
+    v_tu_d      <- c(Res_model$te_hat, Res_model_remd$te_hat, 
+                     Res_model_remd_ba$te_hat)
     
     ## Vector with discounted net monetary benefits (NMB)
     v_nmb_d     <- v_tu_d * n_wtp - v_tc_d
     
     ## Dataframe with discounted costs, effectiveness and NMB
-    df_ce <- data.frame(Strategy = v_names_str,
+    df_cea <- data.frame(Strategy = v_names_str,
                         Cost     = v_tc_d,
                         Effect   = v_tu_d,
                         NMB      = v_nmb_d)
-    
-    return(df_ce)
+    return(df_cea)
   }
   )
 }
