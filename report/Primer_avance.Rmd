@@ -1,0 +1,74 @@
+---
+title: __\textbf{Avances de trabajo de investigación primer parcial}__ 
+author: "Hirvin Azael Diaz Zepeda"
+date: "`r format(Sys.time(), '%d/%m/%Y')`"
+output:
+  pdf_document: default
+  html_document:
+    df_print: paged
+    includes:  
+      in_header: fix_fig.tex
+bibliography: bibliography.bib
+csl: the-lancet-infectious-diseases.csl
+header-includes: 
+- \usepackage{fancyhdr}
+- \usepackage{xcolor}
+- \usepackage{titling}
+- \usepackage{float}
+- \usepackage[spanish]{babel}
+- \usepackage{lipsum}
+- \usepackage{leading}
+- \usepackage{graphicx}
+- \pagestyle{fancy}
+- \floatstyle{plaintop}
+- \restylefloat{table}
+- \leading{18pt}
+- \pretitle{\begin{center}\LARGE\includegraphics[width=8cm]{logo-cide.jpg}\\[\bigskipamount]}
+- \posttitle{\end{center}}
+- \fancyhead[LE,RO]{}
+- \setlength\headheight{27pt}
+- \rhead{\includegraphics[width = 2.8cm]{logo-cide.jpg}}
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = F)
+library(dplyr)
+library(ggplot2)
+library(utils)
+library(scales)
+library(dampack)
+library(chron)
+library(tibble)
+library(knitr)
+library(pander)
+library(kableExtra)
+library(CEAutil)
+library(tidyr)
+library(dampack)
+library(readxl)
+library(readr)
+library(lme4)
+```
+
+
+## Avances y resultados
+
+Este reporte muestra los avances en mi trabajo de investigación: "COVID-19 Mortality Excess and Cost-Effective Analysis of Different Treatments". Lo que se presenta  son visualizaciones de los resultados obtenidos hasta el momento, ya que el procedimiento convenido con mi asesor, el Dr. Fernando Alarid-Escudero,es que primero se trabajen los resultados y las visualizaciones y posteriormente redactar el trabajo de investigación.
+
+
+## Riesgos Relativos
+
+Estos son los resultados de riesgos relativos. Las curvas muestran los tres tipos de hazards: Riesgo específico de COVID-19, riesgo general para cada grupo de edad y sexo, y riesgo total que engloba a los dos anteriores.
+
+
+### Hospitalizados
+```{r, out.width = "77%", fig.align = 'center'}
+include_graphics("../figs/hazard hospitalized2021-03-30.png")
+```
+
+### Intubados
+
+```{r, out.width = "77%", fig.align = 'center'}
+include_graphics("../figs/hazard intubated2021-03-30.png")
+```
+

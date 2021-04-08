@@ -22,7 +22,17 @@ c_Bari <- rgamma(1000, shape = 36.72, scale = 100)
 hist(c_Bari)
 View(c_Bari)
 
-c_hosp     <- rgamma(1000, shape = 81.4163, scale = 100)
+c_hosp     <- rgamma(1000, shape = 8, scale = 1159)
 hist(c_hosp)
 View(c_hosp)
+
+gamma_params(mu = 9272, sigma = 3278.14704)
+
+gamma_params(mu = 44151, sigma = 15609.7357)
+
+c_hosp     <- rgamma(1000, shape = 8, scale = 5518.875)
+hist(c_hosp)
+View(c_hosp)
+
+
 
