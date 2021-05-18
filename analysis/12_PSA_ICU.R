@@ -44,7 +44,6 @@ n_str <- length(v_names_str)
 
 #### Create df with probabilities ####
 d_h_HD_resp <- df_hazards_ICU_hosp %>% 
-  filter(Type != "Observed") %>% 
   filter(state == "ICU")%>% 
   filter(time <= 50)
 
@@ -181,10 +180,10 @@ stopCluster(cl)
 
 # Save and data frames
 
-save(df_ceas_icu, file = "data/df_ceas_icu_3.Rdata")
-save(df_params, file = "data/df_params_icu_3.Rdata")
+save(df_ceas_icu, file = "data/df_ceas_icu_4.Rdata")
+save(df_params, file = "data/df_params_icu_4.Rdata")
 
-load("data/df_CEA_1000_icu.Rdata")
+load("data/df_ceas_icu_4.Rdata")
 load("data/df_params_icu.Rdata")
 
 df_costs <- as.data.frame(df_ceas_icu[,1:2])
@@ -221,16 +220,16 @@ psa_obj <- make_psa_obj(cost = df_costs,
 n_strategies <- length(v_strategies)
 
 save(df_params, df_costs, df_effects, v_strategies, n_strategies, psa_obj,
-     file = "data/PSA_dataset_third_trial_icu.RData")
+     file = "data/PSA_dataset_fourth_trial_icu.RData")
 
-load(file = "data/PSA_dataset_third_trial_icu.RData")
+load(file = "data/PSA_dataset_fourth_trial_icu.RData")
 
 plot(psa_obj)
 
 PIB_pc <- 9946*22.10
-PIB_pc_3 <- PIB_pc*3
+PIB_pc_2 <- PIB_pc*2
 
-v_wtp <- seq(0, PIB_pc_3, by = (PIB_pc_3/20))
+v_wtp <- seq(0, PIB_pc_2, by = (PIB_pc_2/30))
 
 # Compute expected costs and effects for each strategy from the PSA
 df_ce_psa <- summary(psa_obj)
@@ -243,22 +242,67 @@ df_cea_psa <- calculate_icers(cost       = df_ce_psa$meanCost,
 # Save CEA table with ICERs
 # As .RData
 save(df_cea_psa, 
-     file = "data/ICER_results_third_trial_icu.RData")
+     file = "data/ICER_results_fourth_trial_icu.RData")
 
-plot(df_cea_psa)
+df_cea_psa[1,1] <- "No Treatment"
 
-#ggplot(df_cea_psa, 
-#       aes(x = Effect, y = Cost))+
-#  geom_line()+
-#  geom_point()
+load()
+plot(df_cea_psa) +
+  theme(plot.title = element_text(face = "bold", 
+                                  size = 10,
+                                  family =, hjust = 0.5),
+        plot.caption = element_text(hjust = 0,
+                                    colour = "#777777",
+                                    size = 10),
+        panel.background = element_rect(fill = "white", 
+                                        colour = "white", 
+                                        size = 0.15, 
+                                        linetype = "solid"),
+        panel.grid.major = element_line(size = 0.15, 
+                                        linetype = 'solid',
+                                        colour = "white"),
+        legend.position = "bottom") +
+  labs(title = " ",
+       x = "Effect (LYs)",
+       y = "Cost ($ Mexican pesos)")
+
+ggsave(paste0("figs/frontier_ICU_treatment",
+              format(Sys.Date(), "%F"), ".png"), 
+       width = 7, height = 5)
+
 
 ceac_obj <- ceac(wtp = v_wtp, psa = psa_obj)
 
 # Regions of highest probability of cost-effectiveness for each strategy
 summary(ceac_obj)
+
+psa_obj$strategies <- c("No treatment", "Dexamethasone")
+
 # CEAC & CEAF plot
-plot(ceac_obj, currency = "Mexican pesos", 
-     txtsize = 11)
+plot(ceac_obj, 
+     txtsize = 11) + 
+  geom_vline(xintercept = 161.191, linetype = "dotted")+
+  theme(plot.title = element_text(face = "bold", 
+                                  size = 10,
+                                  family =, hjust = 0.5),
+        plot.caption = element_text(hjust = 0,
+                                    colour = "#777777",
+                                    size = 10),
+        panel.background = element_rect(fill = "white", 
+                                        colour = "white", 
+                                        size = 0.15, 
+                                        linetype = "solid"),
+        panel.grid.major = element_line(size = 0.15, 
+                                        linetype = 'solid',
+                                        colour = "white"),
+        legend.position = "bottom") +
+  labs(title = " ",
+       x = "Willingness to Pay (Thousand Mexican pesos / LYs )")
+
+ggsave(paste0("figs/Willingness to Pay ICU",
+              format(Sys.Date(), "%F"), ".png"), 
+       width = 7, height = 5)
+
 
 ## 09.4.3 Expected Loss Curves (ELCs)
 elc_obj <- calc_exp_loss(wtp = v_wtp, psa = psa_obj)

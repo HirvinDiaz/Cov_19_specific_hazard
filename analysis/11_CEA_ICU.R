@@ -34,7 +34,6 @@ source("R/Functions.R")
 
 #### Create df with probabilities ####
 d_h_HD_resp <- df_hazards_ICU_hosp %>% 
-  filter(Type != "Observed") %>% 
   filter(state == "ICU") %>% 
   filter(time <= 50)
 
@@ -46,14 +45,19 @@ d_h_HD_resp <- reshape(d_h_HD_resp,
 hr_Dexa <- 0.64
 
 d_h_HD_resp <- d_h_HD_resp %>% 
-  mutate(haz_Dexa = exp(log(Hazard.Covid_19) + log(hr_Dexa)))
+  mutate(haz_Dexa = exp(log(Hazard.Observed) + log(hr_Dexa)))%>% 
+  mutate(prop_cov = Hazard.Covid_19/Hazard.Observed) %>% 
+  mutate(prop_bac = 1 - prop_cov) 
 
 d_p_HD_resp <- d_h_HD_resp %>% 
-  mutate(p_dCoV = 1 - exp(-Hazard.Covid_19)) %>% 
-  mutate(p_dPop = 1 - exp(- Hazard.Population)) %>% 
-  mutate(p_dCoV_Dexa = 1 - exp(- haz_Dexa)) %>%  
+  mutate(p_die       = 1 - exp(-Hazard.Observed)) %>% 
+  mutate(p_die_Dexa  = 1 - exp(-haz_Dexa)) %>% 
+  mutate(p_dCoV      = p_die*prop_cov) %>% 
+  mutate(p_dPop      = p_die*prop_bac) %>%
+  mutate(p_dCoV_Dexa = p_die_Dexa*prop_cov) %>%
+  mutate(p_dPop_Dexa = p_die_Dexa*prop_bac) %>%
   arrange(group, time)%>% 
-  select(c("time", "group", "sex", "p_dCoV", "p_dPop", "p_dCoV_Dexa"))
+  select(c("time", "group", "sex", "p_dCoV", "p_dPop", "p_dCoV_Dexa", "p_dPop_Dexa"))
 
 #### Create Cohorts ####
 x <- as.Date(max(Cov$date_admission), format = "%Y-%m-%d")
@@ -101,9 +105,8 @@ v_dwe <- 1 / (1) ^ (0:n_t)
 
 ## Costs and utilities inputs (in MX pesos)
 # Average cost for patients that require hospitalized care
-c_hosp     <- 16550    # cost of remaining one cycle hospitalized 
-c_resp     <- 73542.50 # cost of remaining one cycle intubated
-c_dexa     <- 30       # cost of Dexamethasone Treatment for one Cycle
+c_resp     <- 44151    # cost of remaining one cycle intubated
+c_dexa     <- 4       # cost of Dexamethasone Treatment for one Cycle
 c_dead     <- 0        # cost of remaining one cycle Dead
 
 # Life Days outcome.
@@ -132,13 +135,14 @@ Probs <- function(v_M_t, df_X, t, Trt = FALSE) { # t <- 1
   rownames(m_p_t) <-  v_names_states
   # Lookup baseline probability of dying from Covid-19 or other causes  
   if (Trt == "Dexa"){
-    p_die_CoV_all <- dt_p_CoV[.(df_X$group, df_X$time + t, df_X$sex), p_dCoV_Dexa] 
+    p_die_CoV_all <- dt_p_CoV[.(df_X$group, df_X$time + t, df_X$sex), p_dCoV_Dexa]
+    p_die_Pop_all <- dt_p_CoV[.(df_X$group, df_X$time + t, df_X$sex), p_dPop_Dexa] 
   } else if (Trt == "None" | Trt == FALSE){
-    p_die_CoV_all <- dt_p_CoV[.(df_X$group, df_X$time + t, df_X$sex), p_dCoV] 
+    p_die_CoV_all <- dt_p_CoV[.(df_X$group, df_X$time + t, df_X$sex), p_dCoV]
+    p_die_Pop_all <- dt_p_CoV[.(df_X$group, df_X$time + t, df_X$sex), p_dPop] 
   } else {
     message("Choose a treatment within the options")
   }
-  p_die_Pop_all <- dt_p_CoV[.(df_X$group, df_X$time + t, df_X$sex), p_dPop] 
   
   p_die_CoV     <- p_die_CoV_all[v_M_t == "Cov19+"]  
   p_die_Pop     <- p_die_Pop_all[v_M_t == "Cov19+"] 
@@ -187,7 +191,6 @@ Effs <- function (v_M_t) {
 v_M_init  <- rep("Cov19+", n_i)       # everyone begins in the sick state
 
 MicroSim <- function(n_i, df_X, df_pop_ch, life_expectancy, Trt = FALSE) { #t <- 1
-  set.seed(02021989)
   m_M <- m_C <- m_E <-  matrix(NA, nrow = n_i, ncol = n_t + 1, 
                                dimnames = list(paste("ind"  , 1:n_i, sep = " "), 
                                                paste("cycle", 0:n_t, sep = " "))) 
@@ -232,7 +235,7 @@ MicroSim <- function(n_i, df_X, df_pop_ch, life_expectancy, Trt = FALSE) { #t <-
     merge(Life_expectancy, 
           by = c("sex" = "sex",
                  "age" = "age")) %>% 
-    mutate(years = ifelse(`cycle 50` == 0, 0, Years))
+    mutate(years = ifelse(`cycle 50` == 0, 0, Years_dis))
   
   # calculate  
   tc <- m_C %*% v_dwc    # total (discounted) cost per individual
@@ -259,7 +262,7 @@ MicroSim <- function(n_i, df_X, df_pop_ch, life_expectancy, Trt = FALSE) { #t <-
   
 } # end of the MicroSim function  
 
-outcomes <- MicroSim(n_i, df_X, df_pop_ch, Life_expectancy, Trt = FALSE)
+outcomes <- MicroSim(n_i, df_X, df_pop_ch, Life_expectancy, Trt = "Dexa")
 
 results  <- data.frame("Total Cost" = outcomes$tc_hat, 
                        "Total Lys" = outcomes$Ly_s)

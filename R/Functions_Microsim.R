@@ -17,14 +17,16 @@ Probs <- function(v_M_t, df_X, t, n_states, n_i, Trt = FALSE) { # t <- 1
   # Lookup baseline probability of dying from Covid-19 or other causes  
   if (Trt == "Remd"){
     p_die_CoV_all <- dt_p_CoV[.(df_X$group, df_X$time + t, df_X$sex), p_dCoV_Remd] 
+    p_die_Pop_all <- dt_p_CoV[.(df_X$group, df_X$time + t, df_X$sex), p_dPop_Remd]
   } else if (Trt == "Remd_Ba"){
     p_die_CoV_all <- dt_p_CoV[.(df_X$group, df_X$time + t, df_X$sex), p_dCoV_Remd_Ba] 
+    p_die_Pop_all <- dt_p_CoV[.(df_X$group, df_X$time + t, df_X$sex), p_dPop_Remd_Ba]
   } else if (Trt == "None" | Trt == FALSE){
-    p_die_CoV_all <- dt_p_CoV[.(df_X$group, df_X$time + t, df_X$sex), p_dCoV] 
+    p_die_CoV_all <- dt_p_CoV[.(df_X$group, df_X$time + t, df_X$sex), p_dCoV]
+    p_die_Pop_all <- dt_p_CoV[.(df_X$group, df_X$time + t, df_X$sex), p_dPop] 
   } else {
     message("Choose a treatment within the options")
-  }
-  p_die_Pop_all <- dt_p_CoV[.(df_X$group, df_X$time + t, df_X$sex), p_dPop] 
+  } 
   
   p_die_CoV     <- p_die_CoV_all[v_M_t == "Cov19+"]  
   p_die_Pop     <- p_die_Pop_all[v_M_t == "Cov19+"] 
@@ -78,17 +80,24 @@ CEA_microsim <- function(l_params, df_X, df_h, df_pop_ch, life_expectancy,
        
        # Transform hazards to transition probabilities
        d_h_HD_hosp <- d_h_HD_hosp %>% 
-         mutate(haz_Remd = exp(log(Hazard.Covid_19) + log(hr_Remd))) %>% 
-         mutate(haz_Remd_Ba = exp(log(haz_Remd) + log(hr_RemdBa_vs_Remd)))
+         mutate(haz_Remd    = exp(log(Hazard.Observed) + log(hr_Remd))) %>% 
+         mutate(haz_Remd_Ba = exp(log(haz_Remd) + log(hr_RemdBa_vs_Remd))) %>% 
+         mutate(prop_cov    = Hazard.Covid_19/Hazard.Observed) %>% 
+         mutate(prop_bac    = 1 - prop_cov) 
        
        d_p_HD_hosp <- d_h_HD_hosp %>% 
-         mutate(p_dCoV = 1 - exp(-Hazard.Covid_19)) %>% 
-         mutate(p_dPop = 1 - exp(- Hazard.Population)) %>% 
-         mutate(p_dCoV_Remd = 1 - exp(- haz_Remd)) %>% 
-         mutate(p_dCoV_Remd_Ba = 1 - exp(- haz_Remd_Ba)) %>% 
+         mutate(p_die          = 1 - exp(-Hazard.Observed)) %>%
+         mutate(p_die_Remd     = 1 - exp(-haz_Remd)) %>% 
+         mutate(p_die_Remd_Ba  = 1 - exp(-haz_Remd_Ba)) %>% 
+         mutate(p_dCoV         = p_die*prop_cov) %>% 
+         mutate(p_dPop         = p_die*prop_bac) %>% 
+         mutate(p_dCoV_Remd    = p_die_Remd*prop_cov) %>%
+         mutate(p_dPop_Remd    = p_die_Remd*prop_bac) %>%
+         mutate(p_dCoV_Remd_Ba = p_die_Remd_Ba*prop_cov) %>%
+         mutate(p_dPop_Remd_Ba = p_die_Remd_Ba*prop_bac) %>%
          arrange(group, time)%>% 
-         select(c("time", "group", "sex", "p_dCoV", "p_dPop", "p_dCoV_Remd", 
-                  "p_dCoV_Remd_Ba"))
+         select(c("time", "group", "sex", "p_dCoV", "p_dPop", "p_dCoV_Remd",
+                  "p_dPop_Remd", "p_dCoV_Remd_Ba", "p_dPop_Remd_Ba"))
        
        # Convert data frame to a data table for efficiency
        dt_p_CoV <- data.table(d_p_HD_hosp)
@@ -115,14 +124,16 @@ CEA_microsim <- function(l_params, df_X, df_h, df_pop_ch, life_expectancy,
          # Lookup baseline probability of dying from Covid-19 or other causes  
          if (Trt == "Remd"){
            p_die_CoV_all <- dt_p_CoV[.(df_X$group, df_X$time + t, df_X$sex), p_dCoV_Remd] 
+           p_die_Pop_all <- dt_p_CoV[.(df_X$group, df_X$time + t, df_X$sex), p_dPop_Remd]
          } else if (Trt == "Remd_Ba"){
            p_die_CoV_all <- dt_p_CoV[.(df_X$group, df_X$time + t, df_X$sex), p_dCoV_Remd_Ba] 
+           p_die_Pop_all <- dt_p_CoV[.(df_X$group, df_X$time + t, df_X$sex), p_dPop_Remd_Ba]
          } else if (Trt == "None" | Trt == FALSE){
-           p_die_CoV_all <- dt_p_CoV[.(df_X$group, df_X$time + t, df_X$sex), p_dCoV] 
+           p_die_CoV_all <- dt_p_CoV[.(df_X$group, df_X$time + t, df_X$sex), p_dCoV]
+           p_die_Pop_all <- dt_p_CoV[.(df_X$group, df_X$time + t, df_X$sex), p_dPop] 
          } else {
            message("Choose a treatment within the options")
          }
-         p_die_Pop_all <- dt_p_CoV[.(df_X$group, df_X$time + t, df_X$sex), p_dPop] 
          
          p_die_CoV     <- p_die_CoV_all[v_M_t == "Cov19+"]  
          p_die_Pop     <- p_die_Pop_all[v_M_t == "Cov19+"] 
@@ -232,7 +243,6 @@ CEA_function <- function(l_params, df_X, df_h, df_pop_ch, life_expectancy,
 }
 
 #### Functions for ICU ####
-
 Costs_icu <- function (l_params, v_M_t, Trt = FALSE) {
   with(as.list(l_params),{
   # v_M_t: current health state
@@ -259,14 +269,19 @@ CEA_microsim_icu <- function(l_params, df_X, df_h, df_pop_ch, life_expectancy,
     d_h_HD_resp <- df_h # Data frame with specific hazards
     
     d_h_HD_resp <- d_h_HD_resp %>% 
-      mutate(haz_Dexa = exp(log(Hazard.Covid_19) + log(hr_Dexa)))
+      mutate(haz_Dexa = exp(log(Hazard.Observed) + log(hr_Dexa)))%>% 
+      mutate(prop_cov = Hazard.Covid_19/Hazard.Observed) %>% 
+      mutate(prop_bac = 1 - prop_cov) 
     
     d_p_HD_resp <- d_h_HD_resp %>% 
-      mutate(p_dCoV = 1 - exp(-Hazard.Covid_19)) %>% 
-      mutate(p_dPop = 1 - exp(- Hazard.Population)) %>% 
-      mutate(p_dCoV_Dexa = 1 - exp(- haz_Dexa)) %>%  
+      mutate(p_die       = 1 - exp(-Hazard.Observed)) %>% 
+      mutate(p_die_Dexa  = 1 - exp(-haz_Dexa)) %>% 
+      mutate(p_dCoV      = p_die*prop_cov) %>% 
+      mutate(p_dPop      = p_die*prop_bac) %>%
+      mutate(p_dCoV_Dexa = p_die_Dexa*prop_cov) %>%
+      mutate(p_dPop_Dexa = p_die_Dexa*prop_bac) %>%
       arrange(group, time)%>% 
-      select(c("time", "group", "sex", "p_dCoV", "p_dPop", "p_dCoV_Dexa"))
+      select(c("time", "group", "sex", "p_dCoV", "p_dPop", "p_dCoV_Dexa", "p_dPop_Dexa"))
     
     # Convert data frame to a data table for efficiency
     dt_p_CoV <- data.table(d_p_HD_resp)
@@ -292,13 +307,14 @@ CEA_microsim_icu <- function(l_params, df_X, df_h, df_pop_ch, life_expectancy,
       rownames(m_p_t) <-  v_names_states
       # Lookup baseline probability of dying from Covid-19 or other causes  
       if (Trt == "Dexa"){
-        p_die_CoV_all <- dt_p_CoV[.(df_X$group, df_X$time + t, df_X$sex), p_dCoV_Dexa] 
+        p_die_CoV_all <- dt_p_CoV[.(df_X$group, df_X$time + t, df_X$sex), p_dCoV_Dexa]
+        p_die_Pop_all <- dt_p_CoV[.(df_X$group, df_X$time + t, df_X$sex), p_dPop_Dexa] 
       } else if (Trt == "None" | Trt == FALSE){
-        p_die_CoV_all <- dt_p_CoV[.(df_X$group, df_X$time + t, df_X$sex), p_dCoV] 
+        p_die_CoV_all <- dt_p_CoV[.(df_X$group, df_X$time + t, df_X$sex), p_dCoV]
+        p_die_Pop_all <- dt_p_CoV[.(df_X$group, df_X$time + t, df_X$sex), p_dPop] 
       } else {
         message("Choose a treatment within the options")
       }
-      p_die_Pop_all <- dt_p_CoV[.(df_X$group, df_X$time + t, df_X$sex), p_dPop] 
       
       p_die_CoV     <- p_die_CoV_all[v_M_t == "Cov19+"]  
       p_die_Pop     <- p_die_Pop_all[v_M_t == "Cov19+"] 

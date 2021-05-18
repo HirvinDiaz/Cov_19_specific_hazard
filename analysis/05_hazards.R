@@ -931,7 +931,8 @@ save(df_hazards_ICU_hosp, file = "data/df_hazards_ICU_hosp.Rdata")
 load(file = "data/df_hazards_ICU_hosp.Rdata")
 
 df_hazards_hosp <- df_hazards_ICU_hosp %>%
-  filter(state == "Hosp")
+  filter(state == "Hosp") %>% 
+  filter(time <= 50)
 
 df_hazards_hosp$Type[df_hazards_hosp$Type == "Covid_19"] <- "COVID-19"
 df_hazards_hosp$sex[df_hazards_hosp$sex == "male"] <- "Male"
@@ -953,6 +954,7 @@ Hospitalized <- ggplot(filter(df_hazards_hosp,
                 y = Hazard),
             alpha = 0.4, 
             size = 2)+
+ # xlim(0, 0.085)+
   facet_wrap(~age_group, ncol = 2) +
   theme(plot.title = element_text(face = "bold", 
                                   size = 10,
@@ -969,10 +971,10 @@ Hospitalized <- ggplot(filter(df_hazards_hosp,
                                         colour = "#6e6866"),
         legend.position = "bottom")+
   scale_x_continuous(breaks = number_ticks(4))+
-  scale_y_continuous(breaks = number_ticks(3))+
+  scale_y_continuous(breaks = number_ticks(3), limits = c(0,0.085))+
   # axis.text.x = element_text(angle = 90, hjust = 0))+
   scale_color_manual(values=c ("#120d0c", "#e32402", "#02ebdb")) +
-  labs(title = "Hospitalized",
+  labs(title = "Hospitalized, Not Intubated",
        x = " ",
        y = " ",
        color = "Hazard")
@@ -984,7 +986,8 @@ ggsave(paste0("figs/hazard hospitalized",
 
 
 df_hazards_ICU <- df_hazards_ICU_hosp %>%
-  filter(state == "ICU")
+  filter(state == "ICU")%>% 
+  filter(time <= 50)
 
 df_hazards_ICU$Type[df_hazards_ICU$Type == "Covid_19"] <- "COVID-19"
 df_hazards_ICU$sex[df_hazards_ICU$sex == "male"] <- "Male"
@@ -1020,11 +1023,11 @@ ICU <- ggplot(filter(df_hazards_ICU,
                                         linetype = 'solid',
                                         colour = "#6e6866"),
         legend.position = "bottom")+
-  scale_x_continuous(breaks = number_ticks(4))+
+  # scale_x_continuous(breaks = number_ticks(4))+
   scale_y_continuous(breaks = number_ticks(3))+
   # axis.text.x = element_text(angle = 90, hjust = 0))+
   scale_color_manual(values=c ("#120d0c", "#e32402", "#02ebdb")) +
-  labs(title = "Intubated",
+  labs(title = "Hospitalized, Intubated",
        x = " ",
        y = " ",
        color = "Hazard")

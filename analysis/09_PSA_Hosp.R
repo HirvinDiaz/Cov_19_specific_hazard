@@ -69,8 +69,7 @@ n_str <- length(v_names_str)
 
 #### Create df with probabilities ####
 d_h_HD_hosp <- df_hazards_ICU_hosp %>% 
-  filter(Type != "Observed") %>% 
-  filter(state == "Hosp")%>% 
+  filter(state == "Hosp") %>% 
   filter(time <= 50)
 
 d_h_HD_hosp <- reshape(d_h_HD_hosp,
@@ -157,36 +156,36 @@ df_params <- psa_params(n_sim)
 rm(Cohort,Cov)
 
 # Dataframe of costs
-df_cost <- as.data.frame(matrix(0, 
-                                nrow = n_sim,
-                                ncol = n_str))
-colnames(df_cost) <- v_names_str
-
-# Dataframe of effectiveness
-df_effect <- as.data.frame(matrix(0, 
-                                  nrow = n_sim,
-                                  ncol = n_str))
-colnames(df_effect) <- v_names_str
-
+# df_cost <- as.data.frame(matrix(0, 
+#                                 nrow = n_sim,
+#                                 ncol = n_str))
+# colnames(df_cost) <- v_names_str
+# 
+# # Dataframe of effectiveness
+# df_effect <- as.data.frame(matrix(0, 
+#                                   nrow = n_sim,
+#                                   ncol = n_str))
+# colnames(df_effect) <- v_names_str
+# 
 # Run Markov model on each parameter set of PSA input dataset
-p = Sys.time()
-for(i in 1:n_sim){ #i <- 1
-  l_params_psa <- updt_prm_list(l_params, df_params[i,])
-  df_out_psa  <- CEA_function(l_params_psa, 
-                              df_X = df_X,
-                              df_h =  d_h_HD_hosp, 
-                              df_pop_ch =  df_pop_ch,
-                              life_expectancy =  Life_expectancy)
-  df_cost[i, ] <- df_out_psa$Cost
-  df_effect[i, ] <- df_out_psa$Effect
-  # Display simulation progress
-  if(i/(n_sim/10) == round(i/(n_sim/10), 0)) { # display progress every 10%
-    cat('\r', paste(i/n_sim * 100, "% done", sep = " "))
-  }
-}
-comu_time = Sys.time() - p
-# Time to run
-comu_time
+# p = Sys.time()
+# for(i in 1:n_sim){ #i <- 1
+#   l_params_psa <- updt_prm_list(l_params, df_params[i,])
+#   df_out_psa  <- CEA_function(l_params_psa, 
+#                               df_X = df_X,
+#                               df_h =  d_h_HD_hosp, 
+#                               df_pop_ch =  df_pop_ch,
+#                               life_expectancy =  Life_expectancy)
+#   df_cost[i, ] <- df_out_psa$Cost
+#   df_effect[i, ] <- df_out_psa$Effect
+#   # Display simulation progress
+#   if(i/(n_sim/10) == round(i/(n_sim/10), 0)) { # display progress every 10%
+#     cat('\r', paste(i/n_sim * 100, "% done", sep = " "))
+#   }
+# }
+# comu_time = Sys.time() - p
+# # Time to run
+# comu_time
 
 #### Microsimulation of 1,000 different sets of parameters ####
 #### Parallelization ####
@@ -218,9 +217,9 @@ df_ceas <- foreach(i = 1:n_sim, .combine = rbind,
 comu_time_par = Sys.time() - p
 stopCluster(cl)
 
-save(df_ceas,file =  "data/df_CEA_1000_thridtrial.Rdata")
+save(df_ceas,file =  "data/df_CEA_1000_fourthtrial.Rdata")
 
-load("data/df_CEA_1000.Rdata")
+load("data/df_CEA_1000_fourthtrial.Rdata")
 load("data/df_params.Rdata")
 
 df_costs <- as.data.frame(df_ceas[,1:3])
@@ -255,18 +254,17 @@ psa_obj <- make_psa_obj(cost = df_costs,
 n_strategies <- length(v_strategies)
 
 save(df_params, df_costs, df_effects, v_strategies, n_strategies, psa_obj,
-     file = "data/PSA_dataset_third_trial_hosp.RData")
+     file = "data/PSA_dataset_fourth_trial_hosp.RData")
 
-load(file = "data/PSA_dataset_third_trial_hosp.RData")
+load(file = "data/PSA_dataset_fourth_trial_hosp.RData")
 
 plot(psa_obj)
 
 PIB_pc <- 9946*22.10
-PIB_pc_3 <- PIB_pc*3
+PIB_pc_2 <- PIB_pc*2
 PIB_pc_5d <- (PIB_pc*5)/365
 
-v_wtp <- seq(0, PIB_pc_3, by = (PIB_pc_3)/20)
-
+v_wtp <- seq(0, PIB_pc_2, by = (PIB_pc_2)/30)
 
 # Compute expected costs and effects for each strategy from the PSA
 df_ce_psa <- summary(psa_obj)
@@ -276,50 +274,72 @@ df_cea_psa <- calculate_icers(cost       = df_ce_psa$meanCost,
                               effect     = df_ce_psa$meanEffect,
                               strategies = df_ce_psa$Strategy)
 
-
-df_cea_psa_my <- cbind(df_ce_psa$Strategy, df_ce_psa$meanCost, df_ce_psa$meanEffect)
-
-df_ce_psa <- as.data.frame(df_cea_psa_my)
-
-df_ce_psa <- df_ce_psa %>% 
-  rename(meanCost = V2,
-         meanEffect = V3)
-
-df_cea_psa <-  df_ce_psa %>% 
-  mutate(Inc_Cost = c(NA, diff(meanCost))) %>% 
-  mutate(Inc_Eff = c(NA, diff(meanEffect))) %>% 
-  mutate(ICER = Inc_Cost/Inc_Eff) %>% 
-  rename(Cost = meanCost,
-         Effect = meanEffect)
-
 # Save CEA table with ICERs
 # As .RData
 save(df_cea_psa, 
-     file = "data/ICER_results_third_trial.RData")
+     file = "data/ICER_results_fourth_trial.RData")
 
-load("ICER_results_first_trial.RData")
+load("data/ICER_results_fourth_trial.RData")
 
-plot(df_cea_psa)
-ggplot(df_cea_psa, 
-       aes(x = Effect, y = Cost))+
-  geom_line()+
-  geom_point()
+psa_obj$strategies <- c("No treatment", "Remdesivir", "Remdesivir and Baricitinib")
+
+df_cea_psa[1,1] <- "No Treatment"
+df_cea_psa[2,1] <- "Remdesivir and Baricitinib"
+
+
+plot(df_cea_psa)+
+  geom_line(linetype = "dotted")+
+  theme(plot.title = element_text(face = "bold", 
+                                  size = 10,
+                                  family =, hjust = 0.5),
+        plot.caption = element_text(hjust = 0,
+                                    colour = "#777777",
+                                    size = 10),
+        panel.background = element_rect(fill = "white", 
+                                        colour = "white", 
+                                        size = 0.15, 
+                                        linetype = "solid"),
+        panel.grid.major = element_line(size = 0.15, 
+                                        linetype = 'solid',
+                                        colour = "white"),
+        legend.position = "bottom") +
+  labs(title = " ",
+       x = "Effect (LYs)",
+       y = "Cost ($ Mexican pesos)")
+
+ggsave(paste0("figs/frontier_hosp_treatment",
+              format(Sys.Date(), "%F"), ".png"), 
+       width = 7, height = 5)
 
 
 ceac_obj <- ceac(wtp = v_wtp, psa = psa_obj)
 # Regions of highest probability of cost-effectiveness for each strategy
 summary(ceac_obj)
 # CEAC & CEAF plot
-gg_ceac <- plot(ceac_obj, 
+plot(ceac_obj, 
      currency = "Mexican pesos", 
-     txtsize = 11)
+     txtsize = 11) + 
+  geom_vline(xintercept = 87.922, linetype = "dotted")+
+  theme(plot.title = element_text(face = "bold", 
+                                  size = 10,
+                                  family =, hjust = 0.5),
+        plot.caption = element_text(hjust = 0,
+                                    colour = "#777777",
+                                    size = 10),
+        panel.background = element_rect(fill = "white", 
+                                        colour = "white", 
+                                        size = 0.15, 
+                                        linetype = "solid"),
+        panel.grid.major = element_line(size = 0.15, 
+                                        linetype = 'solid',
+                                        colour = "white"),
+        legend.position = "bottom") +
+  labs(title = " ",
+       x = "Willingness to Pay (Thousand Mexican pesos / LYs )")
 
-gg_ceac <- gg_ceac + 
-  xlab("Thousand Mexican ")
-
-
-
-body(plot)
+ggsave(paste0("figs/Willingness to Pay",
+              format(Sys.Date(), "%F"), ".png"), 
+       width = 7, height = 5)
 
 
 ## 09.4.3 Expected Loss Curves (ELCs)
