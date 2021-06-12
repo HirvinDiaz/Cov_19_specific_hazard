@@ -4,22 +4,15 @@
 # Health (DARTH) workgroup:
 
 ####  Load Packages  ####
-library(dplyr)
 library(ggplot2)
 library(utils)
 library(scales)
 library(dampack)
-library(chron)
-library(tibble)
-library(knitr)
-library(pander)
-library(kableExtra)
 library(CEAutil)
-library(tidyr)
+library(tidyverse)
 library(dampack)
 library(data.table)
 library(reshape2)
-library(survival)
 library(survPen)
 library(relsurv)
 library(readr)
@@ -40,15 +33,15 @@ load("data/rate_mx.Rdata")
 # Public Data base of suspected people with COVID-19 
 load("data/cov_04_04.Rdata") 
 
-# Data with life expectancy
-load("data/Life_expectancy.Rdata")
+# Data with QALEs expenditure for survivals
+load("data/df_QALEs_Markov.Rdata")
 
 # Source functions
 source("R/Functions_Microsim.R")
 source("R/Functions.R")
 
 ### Paralelization packages ###
-library("foreach")
+library(foreach)
 library(dlookr)
 library(doParallel)
 library(doSNOW)
@@ -61,6 +54,7 @@ Cov <- Cov %>%
 # Number of simulations
 n_sim <- 1000
 
+set.seed(29051993)
 # Strategy names
 v_names_str <- c("No Treatment", "Remdesivir", "Remdesivir & Bariticinib") 
 
@@ -98,12 +92,15 @@ Cohort <- Cov %>%
                             ifelse(age >= 55 & age <= 64, "55 - 64",
                                    ifelse(age >= 65 & age <= 69, "65 - 69", 
                                           "70 +"))))
+
+length(Cohort$sex[Cohort$age_range == "65 - 69" & Cohort$sex == "female"])
+
 df_pop_ch <- Cohort %>% 
   select(c("sex", "age"))
 
 Cohort <- Cohort %>% 
   mutate(state = ifelse(intubated == 1, "ICU", "Hosp")) %>%
-  select(c("sex","age_range","state")) %>%
+  select(c("sex","age_range","state","age")) %>%
   rename(group = age_range) %>% 
   mutate(time = 0)
 
@@ -112,18 +109,18 @@ df_X <- Cohort
 
 # List of parameters
 l_params <- list( 
-  hr_Remd           = 0.73,  # probability to die when healthy
-  hr_RemdBa_vs_Remd = 0.65,   
+  hr_Remd           = 0.73,    # probability to die when healthy
+  hr_RemdBa_vs_Remd = 0.65,
+  mean_days         = 13.29,
   c_hosp            = 9272,   
   c_remd            = 6188,  
   c_bari            = 3672.35,      
-  c_dead            = 0,     # hazard ratio of death in sicker vs healthy
-  l_sick            = 1,   # cost of remaining one cycle in the healthy state
-  l_dead            = 0   # cost of remaining one cycle in the sick state
+  c_dead            = 0,      # hazard ratio of death in sicker vs healthy
+  l_sick            = 1,      # cost of remaining one cycle in the healthy state
+  l_dead            = 0       # cost of remaining one cycle in the sick state
 )
 
-# Function to generate PSA parameters ()
-
+# Function to generate PSA parameters 
 psa_params <- function(n_sim){
   df_parameters <- data.frame(
     # Hazard ratio of Remdesivir 
@@ -135,7 +132,10 @@ psa_params <- function(n_sim){
     hr_RemdBa_vs_Remd   = rlnorm(n_sim, 
                               meanlog = log(0.65), 
                               sd = (log(1.09)-log(0.39))/(2*1.96)),
-
+    # Mean days
+    mean_days  =  rlnorm(n_sim, 
+                         meanlog = 2.4321, 
+                         sdlog = 0.5153),      
     # Costs
     c_hosp     = rgamma(n_sim, shape = 8, scale = 1159),  
     # cost of remaining one cycle hospitalized 
@@ -156,36 +156,39 @@ df_params <- psa_params(n_sim)
 rm(Cohort,Cov)
 
 # Dataframe of costs
-# df_cost <- as.data.frame(matrix(0, 
-#                                 nrow = n_sim,
-#                                 ncol = n_str))
-# colnames(df_cost) <- v_names_str
-# 
-# # Dataframe of effectiveness
-# df_effect <- as.data.frame(matrix(0, 
-#                                   nrow = n_sim,
-#                                   ncol = n_str))
-# colnames(df_effect) <- v_names_str
-# 
+ df_cost <- as.data.frame(matrix(0, 
+                          nrow = n_sim,
+                          ncol = n_str))
+ colnames(df_cost) <- v_names_str
+ 
+ # Dataframe of effectiveness
+ df_effect <- as.data.frame(matrix(0, 
+                                   nrow = n_sim,
+                                   ncol = n_str))
+ colnames(df_effect) <- v_names_str
+ 
+ mean_days = 13
 # Run Markov model on each parameter set of PSA input dataset
-# p = Sys.time()
-# for(i in 1:n_sim){ #i <- 1
-#   l_params_psa <- updt_prm_list(l_params, df_params[i,])
-#   df_out_psa  <- CEA_function(l_params_psa, 
-#                               df_X = df_X,
-#                               df_h =  d_h_HD_hosp, 
-#                               df_pop_ch =  df_pop_ch,
-#                               life_expectancy =  Life_expectancy)
-#   df_cost[i, ] <- df_out_psa$Cost
-#   df_effect[i, ] <- df_out_psa$Effect
-#   # Display simulation progress
-#   if(i/(n_sim/10) == round(i/(n_sim/10), 0)) { # display progress every 10%
-#     cat('\r', paste(i/n_sim * 100, "% done", sep = " "))
-#   }
-# }
-# comu_time = Sys.time() - p
-# # Time to run
-# comu_time
+ p = Sys.time()
+ for(i in 1:n_sim){ #i <- 1
+   l_params_psa <- updt_prm_list(l_params, df_params[i,])
+   df_out_psa  <- CEA_function(l_params_psa, 
+                               df_X = df_X,
+                               df_h =  d_h_HD_hosp, 
+                               df_pop_ch =  df_pop_ch,
+                               df_QALE = df_QALEs, 
+                               df_Costs = df_Costs, 
+                               mean_days = mean_days)
+   df_cost[i, ] <- df_out_psa$Cost
+   df_effect[i, ] <- df_out_psa$Effect
+   # Display simulation progress
+   if(i/(n_sim/10) == round(i/(n_sim/10), 0)) { # display progress every 10%
+     cat('\r', paste(i/n_sim * 100, "% done", sep = " "))
+   }
+ }
+ comu_time = Sys.time() - p
+ # Time to run
+ comu_time
 
 #### Microsimulation of 1,000 different sets of parameters ####
 #### Parallelization ####
@@ -211,138 +214,145 @@ df_ceas <- foreach(i = 1:n_sim, .combine = rbind,
                                     df_X = df_X, 
                                     df_h = d_h_HD_hosp,
                                     df_pop_ch =  df_pop_ch,
-                                    life_expectancy =  Life_expectancy)
+                                    df_QALE = df_QALE, 
+                                    df_Costs = df_Costs, 
+                                    mean_days = mean_days)
         df_ceas <- c(df_out_psa$Cost, df_out_psa$Effect)
         }
 comu_time_par = Sys.time() - p
 stopCluster(cl)
 
-save(df_ceas,file =  "data/df_CEA_1000_fourthtrial.Rdata")
+df_CEAs_hosp <- as.data.frame(df_ceas)
 
-load("data/df_CEA_1000_fourthtrial.Rdata")
-load("data/df_params.Rdata")
+save(df_CEAs_hosp, file = "data/df_CEAs_hosp_07_06.Rdata")
+load(file = "data/df_CEAs_hosp_07_06.Rdata")
+df_CEAs_hosp_cost <- df_CEAs_hosp %>%
+  select(1:3) %>% 
+  rename(`No Treatment` =  V1,
+         Remdesivir = V2,
+         `Remdesivir & Baricitinib` = V3)
 
+df_CEAs_hosp_cost_long <- gather(df_CEAs_hosp_cost, key = "Strategy", value = "Costs") 
+
+df_CEAs_hosp_effect <- df_CEAs_hosp %>%
+  select(4:6) %>% 
+  rename(`No Treatment` =  V4,
+         Remdesivir = V5,
+         `Remdesivir & Baricitinib` = V6)
+
+df_CEAs_hosp_effect_long <- gather(df_CEAs_hosp_effect, key = "Strategy", value = "Effect") 
+
+df_CEAs_hosp_long <- bind_cols(df_CEAs_hosp_cost_long, df_CEAs_hosp_effect_long$Effect) 
+
+df_CEAs_hosp_long <- df_CEAs_hosp_long %>% 
+  rename(Effect = ...3)
+
+save(df_CEAs_hosp_cost_long, file = "data/df_CEAs_hosp_cost_long_07_06.Rdata")
+save(df_params, file = "data/df_CEAs_params_07_06.Rdata")
+
+# load("data/df_CEAs_hosp_cost_long.Rdata")
+#### PSA Object ####
 df_costs <- as.data.frame(df_ceas[,1:3])
-df_costs <- df_costs %>% 
-  rename(`No Treatment` = V1,
-         `Remdesivir` = V2,
-         `Remdesivir & Baricitinib` = V3)
 df_effects <- as.data.frame(df_ceas[,4:6])
-df_effects <- df_effects %>% 
-  rename(`No Treatment` = V1,
-         `Remdesivir` = V2,
-         `Remdesivir & Baricitinib` = V3)
-df_costs <- df_costs %>% 
-  mutate(name = row_number())
-
-df_effects <- df_effects %>% 
-  mutate(name = row_number())
-
-df_effects <- df_effects %>% 
-  select(- "name")
-
-df_costs <- df_costs %>% 
-  select(- "name")
-
 v_strategies <- c("No Treatment", "Remdesivir", "Remdesivir.Baricitinib")
 
-psa_obj <- make_psa_obj(cost = df_costs, 
-                        effectiveness = df_effects, 
-                        parameters = df_params, 
-                        strategies = v_strategies)
+psa_obj_hosp <- make_psa_obj(cost = df_costs, 
+                             effectiveness = df_effects, 
+                             parameters = df_params, 
+                             strategies = v_strategies)
 
 n_strategies <- length(v_strategies)
 
-save(df_params, df_costs, df_effects, v_strategies, n_strategies, psa_obj,
-     file = "data/PSA_dataset_fourth_trial_hosp.RData")
+save(df_params, df_costs, df_effects, v_strategies, n_strategies, psa_obj_hosp,
+     file = "data/PSA_dataset_07_06_hosp.RData")
 
-load(file = "data/PSA_dataset_fourth_trial_hosp.RData")
+load("data/PSA_dataset_07_06_hosp.RData")
 
-plot(psa_obj)
-
-PIB_pc <- 9946*22.10
-PIB_pc_2 <- PIB_pc*2
-PIB_pc_5d <- (PIB_pc*5)/365
-
-v_wtp <- seq(0, PIB_pc_2, by = (PIB_pc_2)/30)
+psa_obj_hosp$strategies <- c("No treatment", "Remdesivir", "Remdesivir and Baricitinib")
 
 # Compute expected costs and effects for each strategy from the PSA
-df_ce_psa <- summary(psa_obj)
+df_ce_psa <- summary(psa_obj_hosp)
 
 # Calculate incremental cost-effectiveness ratios (ICERs)
-df_cea_psa <- calculate_icers(cost       = df_ce_psa$meanCost, 
-                              effect     = df_ce_psa$meanEffect,
-                              strategies = df_ce_psa$Strategy)
+df_cea_psa_Hosp <- calculate_icers(cost       = df_ce_psa$meanCost, 
+                                   effect     = df_ce_psa$meanEffect,
+                                   strategies = df_ce_psa$Strategy)
 
 # Save CEA table with ICERs
-# As .RData
-save(df_cea_psa, 
-     file = "data/ICER_results_fourth_trial.RData")
+save(df_cea_psa_Hosp, file = "data/ICER_results_07_06.RData")
 
-load("data/ICER_results_fourth_trial.RData")
+load("data/ICER_results_07_06.RData")
+# load("data/ICER_results_29_05.RData")
 
-psa_obj$strategies <- c("No treatment", "Remdesivir", "Remdesivir and Baricitinib")
+df_cea_psa_Hosp[1,1] <- "No Treatment"
+df_cea_psa_Hosp[2,1] <- "Remdesivir and Baricitinib"
+#### CEAC Object & CEAF plot ####
 
-df_cea_psa[1,1] <- "No Treatment"
-df_cea_psa[2,1] <- "Remdesivir and Baricitinib"
+PIB_pc <- 9946*22.10
+v_wtp <- seq(0, PIB_pc, by = (PIB_pc)/30)
+ceac_obj_hosp <- ceac(wtp = v_wtp, psa = psa_obj_hosp)
+summary(ceac_obj_hosp)
 
-
-plot(df_cea_psa)+
-  geom_line(linetype = "dotted")+
-  theme(plot.title = element_text(face = "bold", 
-                                  size = 10,
-                                  family =, hjust = 0.5),
-        plot.caption = element_text(hjust = 0,
-                                    colour = "#777777",
-                                    size = 10),
-        panel.background = element_rect(fill = "white", 
-                                        colour = "white", 
-                                        size = 0.15, 
-                                        linetype = "solid"),
-        panel.grid.major = element_line(size = 0.15, 
-                                        linetype = 'solid',
-                                        colour = "white"),
-        legend.position = "bottom") +
-  labs(title = " ",
-       x = "Effect (LYs)",
-       y = "Cost ($ Mexican pesos)")
-
-ggsave(paste0("figs/frontier_hosp_treatment",
-              format(Sys.Date(), "%F"), ".png"), 
-       width = 7, height = 5)
-
-
-ceac_obj <- ceac(wtp = v_wtp, psa = psa_obj)
-# Regions of highest probability of cost-effectiveness for each strategy
-summary(ceac_obj)
-# CEAC & CEAF plot
-plot(ceac_obj, 
-     currency = "Mexican pesos", 
-     txtsize = 11) + 
-  geom_vline(xintercept = 87.922, linetype = "dotted")+
-  theme(plot.title = element_text(face = "bold", 
-                                  size = 10,
-                                  family =, hjust = 0.5),
-        plot.caption = element_text(hjust = 0,
-                                    colour = "#777777",
-                                    size = 10),
-        panel.background = element_rect(fill = "white", 
-                                        colour = "white", 
-                                        size = 0.15, 
-                                        linetype = "solid"),
-        panel.grid.major = element_line(size = 0.15, 
-                                        linetype = 'solid',
-                                        colour = "white"),
-        legend.position = "bottom") +
-  labs(title = " ",
-       x = "Willingness to Pay (Thousand Mexican pesos / LYs )")
-
-ggsave(paste0("figs/Willingness to Pay",
-              format(Sys.Date(), "%F"), ".png"), 
-       width = 7, height = 5)
-
-
+plot(ceac_obj_hosp)
 ## 09.4.3 Expected Loss Curves (ELCs)
-elc_obj <- calc_exp_loss(wtp = v_wtp, psa = psa_obj)
+elc_obj_hosp <- calc_exp_loss(wtp = v_wtp, psa = psa_obj_hosp)
+
+colnames(elc_obj_hosp)
+
+elc_obj_hosp <- elc_obj_hosp %>% 
+  rename(`No Treatment` = No.Treatment,
+         `Remdesivir & Baricitinib` = Remdesivir.Baricitinib,
+         `Frontier & EVPI` = Frontier_EVPI)
+
+elc_obj_hosp_long <- gather(data = elc_obj_hosp,
+                            key = "Strategy", 
+                            value = "Value", -WTP) 
+
 # ELC plot
-plot(elc_obj, log_y = FALSE)
+plot(elc_obj_hosp, log_y = FALSE)
+
+#### Deterministic sensitivity analysis
+metamodel_icu <- metamodel(analysis = "oneway", psa = psa_obj_icu, wtp = v_wtp )
+
+o_icu <- owsa(sa_obj = psa_obj_icu, outcome = "nmb", wtp = v_wtp)
+
+plot(o_hosp,
+     n_x_ticks = 2)
+
+owsa_tornado(o)
+
+
+tw_hosp <- twsa(psa_obj_hosp, 
+           param1 = "hr_RemdBa_vs_Remd", param2 = "hr_Remd", outcome = "nmb", wtp = v_wtp)
+
+tw_hosp$strategy[tw_hosp$strategy == "No.Treatment"] <- "No Treatment"
+tw_hosp$strategy[tw_hosp$strategy == "Remdesivir.Baricitinib"] <- "Remdesivir and Baricitinib"
+
+tw_hosp <- tw_hosp %>% 
+  rename(`HR Remdesivir` = hr_Remd,
+         `HR Remdesivir & Baricitinib` = hr_RemdBa_vs_Remd)
+
+plot(tw_hosp) + 
+  theme(plot.title = element_text(face = "bold", 
+                                  size = 12,
+                                  family =, 
+                                  hjust = 0.5),
+        axis.line.x = element_line(color="#ebe4e4", size = 1),
+        axis.line.y = element_line(color="#ebe4e4", size = 1),
+        plot.caption = element_text(hjust = 0,
+                                    colour = "#777777",
+                                    size = 10),
+        panel.background = element_rect(fill = "white", 
+                                        colour = "white", 
+                                        size = 0.15, 
+                                        linetype = "solid"),
+        panel.grid.major = element_line(size = 0.15, 
+                                        linetype = 'solid',
+                                        colour = "#ebe4e4"),
+        legend.position = "bottom", 
+        legend.text = element_text(size = 8),
+        legend.title = element_text(size = 8.5)) +
+  labs(title = "Two way Sensitivity Analysis",
+       fill = "Strategy") +
+  scale_fill_manual(values=c ("#575c59", "#2cc9de", "#eb542f"))
+  

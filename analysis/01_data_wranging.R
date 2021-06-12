@@ -26,4 +26,28 @@ Cov <- Cov %>%
 
 save(Cov, file = "data/cov_04_04.Rdata")
 
+colnames(QALEs_and_costs)
 
+df_QALEs_cost <- QALEs_and_costs %>% 
+  rename(QALE_m = Male...2,
+         QALE_f = Female...3,
+         Costs_m = Male...4,
+         Costs_f = Female...5)
+
+df_QALE <- df_QALEs_cost %>% 
+  select(1,2,3) %>% 
+  rename(male = QALE_m,
+         female = QALE_f)
+
+df_QALE <- gather(data = df_QALE, key = sex, value = QALE,-Edad)
+
+save(df_QALE, file = "data/df_QALEs.Rdata")
+
+df_Costs <- df_QALEs_cost %>% 
+  select(1,4,5) %>% 
+  rename(male = Costs_m,
+         female = Costs_f)
+
+df_Costs <- gather(data = df_Costs, key = sex, value = QALE,-Edad)
+
+save(df_Costs, file = "data/df_Costs.Rdata")

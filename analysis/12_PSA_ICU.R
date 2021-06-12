@@ -15,8 +15,11 @@ load("data/rate_mx.Rdata")
 # Public Data base of suspected people with COVID-19 
 load("data/cov_04_04.Rdata") 
 
-# Data with life expectancy
-load("data/Life_expectancy.Rdata")
+# Data with healthcare expenditure for survivals
+load("data/df_Costs.Rdata")
+
+# Data with QALEs expenditure for survivals
+load("data/df_QALEs_Markov.Rdata")
 
 # Source functions
 source("R/Functions_Microsim.R")
@@ -27,6 +30,7 @@ library(foreach)
 library(dlookr)
 library(doParallel)
 library(doSNOW)
+library(tidyverse)
 
 #### Filter to get only 2020 ####
 
@@ -72,12 +76,15 @@ Cohort <- Cov %>%
                             ifelse(age >= 55 & age <= 64, "55 - 64",
                                    ifelse(age >= 65 & age <= 69, "65 - 69", 
                                           "70 +"))))
+
+length(Cohort$sex[Cohort$age_range == "70 +" & Cohort$sex == "male"])
+
 df_pop_ch <- Cohort %>% 
   select(c("sex", "age"))
 
 Cohort <- Cohort %>% 
   mutate(state = ifelse(intubated == 1, "ICU", "Hosp")) %>%
-  select(c("sex","age_range","state")) %>%
+  select(c("sex", "age_range", "state", "age")) %>%
   rename(group = age_range) %>% 
   mutate(time = 0)
 
@@ -86,7 +93,8 @@ df_X <- Cohort
 
 # List with parameters
 l_params <- list( # El elemento que estamos creando es una lista
-  hr_Dexa        = 0.64,  
+  hr_Dexa        = 0.64,
+  mean_days      = 13.29,
   c_resp         = 44151,    
   c_dexa         = 4,  
   c_dead         = 0,     
@@ -102,6 +110,10 @@ psa_params <- function(n_sim){
     hr_Dexa    = rlnorm(n_sim,
                         meanlog = log(0.64), 
                         sd = (log(0.81)-log(0.51))/(2*1.96)), 
+    # Mean days
+    mean_days  =  rlnorm(n_sim, 
+                         meanlog = 2.3105, 
+                         sdlog = 0.8008), 
     # Costs
     c_resp     = rgamma(n_sim, shape = 8, scale = 5518.875),  
     c_dexa     = 4,
@@ -134,10 +146,12 @@ p = Sys.time()
 for(i in 1:n_sim){ #i <- 1 
   l_params_psa <- updt_prm_list(l_params, df_params[i,])
   df_out_psa  <- CEA_function_icu(l_params_psa, 
-                                  df_X = df_X, 
-                                  df_h = d_h_HD_resp,
-                                  df_pop_ch =  df_pop_ch, 
-                                  life_expectancy =  Life_expectancy)
+                                  df_X      = df_X, 
+                                  df_h      = d_h_HD_resp,
+                                  df_pop_ch = df_pop_ch, 
+                                  df_QALE   = df_QALEs, 
+                                  df_Costs  = df_Costs, 
+                                  mean_days = mean_days)
   df_cost[i, ] <- df_out_psa$Cost
   df_effect[i, ] <- df_out_psa$Effect
   # Display simulation progress
@@ -173,138 +187,103 @@ df_ceas_icu <- foreach(i = 1:n_sim, .combine = rbind,
                                                      df_X = df_X, 
                                                      df_h = d_h_HD_resp,
                                                      df_pop_ch =  df_pop_ch, 
-                                                     life_expectancy =  Life_expectancy)
+                                                     df_QALE   = df_QALEs, 
+                                                     df_Costs  = df_Costs, 
+                                                     mean_days = mean_days)
                      df_ceas <- c(df_out_psa$Cost, df_out_psa$Effect)}
 comu_time_par = Sys.time() - p
 stopCluster(cl)
 
 # Save and data frames
 
-save(df_ceas_icu, file = "data/df_ceas_icu_4.Rdata")
-save(df_params, file = "data/df_params_icu_4.Rdata")
+save(df_ceas_icu, file = "data/df_ceas_icu_07_06.Rdata")
+save(df_params, file = "data/df_params_icu_07_06.Rdata")
 
-load("data/df_ceas_icu_4.Rdata")
-load("data/df_params_icu.Rdata")
+load(file = "data/df_ceas_icu_07_06.Rdata")
+# Create data-frame for visualization
+df_CEAs_icu <- as.data.frame(df_ceas_icu)
 
+df_CEAs_icu_cost <- df_CEAs_icu %>%
+  select(1:2) %>% 
+  rename(`No Treatment` =  V1,
+         Dexamethasone = V2)
+
+df_CEAs_icu_cost_long <- gather(df_CEAs_icu_cost, key = "Strategy", value = "Costs") 
+
+df_CEAs_icu_effect <- df_CEAs_icu %>%
+  select(3:4) %>% 
+  rename(`No Treatment` =  V3,
+         Dexamethasone = V4)
+
+df_CEAs_icu_effect_long <- gather(df_CEAs_icu_effect, key = "Strategy", value = "Effect") 
+
+df_CEAs_icu_long <- bind_cols(df_CEAs_icu_cost_long, df_CEAs_icu_effect_long$Effect) 
+
+df_CEAs_icu_long <- df_CEAs_icu_long %>% 
+  rename(Effect = ...3)
+
+df_CEAs_icu_long <- df_CEAs_icu_long %>% 
+  mutate(Strategy = fct_relevel(Strategy, 
+                               "No Treatment", 
+                               "Dexamethasone"))
+
+save(df_CEAs_icu_long, file = "data/df_CEAs_icu_long_07_06.Rdata")
+
+#### PSA Object ####
 df_costs <- as.data.frame(df_ceas_icu[,1:2])
-
-df_costs <- df_costs %>% 
-  rename(`No Treatment` = V1,
-         `Dexamethasone` = V2)
-
 df_effects <- as.data.frame(df_ceas_icu[,3:4])
-
-df_effects <- df_effects %>% 
-  rename(`No Treatment` = V1,
-         `Dexamethasone` = V2)
-
-df_costs <- df_costs %>% 
-  mutate(name = row_number())
-
-df_effects <- df_effects %>% 
-  mutate(name = row_number())
-
-df_effects <- df_effects %>% 
-  select(- "name")
-
-df_costs <- df_costs %>% 
-  select(- "name")
-
 v_strategies <- c("No Treatment", "Dexamethasone")
-
-psa_obj <- make_psa_obj(cost = df_costs, 
+psa_obj_icu <- make_psa_obj(cost = df_costs, 
                         effectiveness = df_effects, 
                         parameters = df_params, 
                         strategies = v_strategies)
 
 n_strategies <- length(v_strategies)
+save(df_params, df_costs, df_effects, v_strategies, n_strategies, psa_obj_icu,
+     file = "data/PSA_dataset_07_06icu.RData")
+load(file = "data/PSA_dataset_07_06icu.RData")
 
-save(df_params, df_costs, df_effects, v_strategies, n_strategies, psa_obj,
-     file = "data/PSA_dataset_fourth_trial_icu.RData")
-
-load(file = "data/PSA_dataset_fourth_trial_icu.RData")
-
-plot(psa_obj)
-
-PIB_pc <- 9946*22.10
-PIB_pc_2 <- PIB_pc*2
-
-v_wtp <- seq(0, PIB_pc_2, by = (PIB_pc_2/30))
-
-# Compute expected costs and effects for each strategy from the PSA
-df_ce_psa <- summary(psa_obj)
+psa_obj_icu$strategies <- c("No treatment", "Dexamethasone")
 
 # Calculate incremental cost-effectiveness ratios (ICERs)
-df_cea_psa <- calculate_icers(cost       = df_ce_psa$meanCost, 
-                              effect     = df_ce_psa$meanEffect,
-                              strategies = df_ce_psa$Strategy)
+df_ce_psa <- summary(psa_obj_icu)
+df_cea_psa_ICU <- calculate_icers(cost       = df_ce_psa$meanCost, 
+                                  effect     = df_ce_psa$meanEffect,
+                                  strategies = df_ce_psa$Strategy)
+
+df_cea_psa_ICU[1,1] <- "No Treatment"
 
 # Save CEA table with ICERs
-# As .RData
-save(df_cea_psa, 
-     file = "data/ICER_results_fourth_trial_icu.RData")
+save(df_cea_psa_ICU, 
+     file = "data/ICER_results_icu_07_06.RData")
 
-df_cea_psa[1,1] <- "No Treatment"
-
-load()
-plot(df_cea_psa) +
-  theme(plot.title = element_text(face = "bold", 
-                                  size = 10,
-                                  family =, hjust = 0.5),
-        plot.caption = element_text(hjust = 0,
-                                    colour = "#777777",
-                                    size = 10),
-        panel.background = element_rect(fill = "white", 
-                                        colour = "white", 
-                                        size = 0.15, 
-                                        linetype = "solid"),
-        panel.grid.major = element_line(size = 0.15, 
-                                        linetype = 'solid',
-                                        colour = "white"),
-        legend.position = "bottom") +
-  labs(title = " ",
-       x = "Effect (LYs)",
-       y = "Cost ($ Mexican pesos)")
-
-ggsave(paste0("figs/frontier_ICU_treatment",
-              format(Sys.Date(), "%F"), ".png"), 
-       width = 7, height = 5)
-
-
-ceac_obj <- ceac(wtp = v_wtp, psa = psa_obj)
-
-# Regions of highest probability of cost-effectiveness for each strategy
-summary(ceac_obj)
-
-psa_obj$strategies <- c("No treatment", "Dexamethasone")
+load(file = "data/ICER_results_icu_07_06.RData")
+#### CEAC Object & CEAF plot ####
+PIB_pc <- 9946*22.10
+v_wtp <- seq(0, PIB_pc, by = (PIB_pc/30))
+ceac_obj_icu <- ceac(wtp = v_wtp, psa = psa_obj_icu)
+summary(ceac_obj_icu)
 
 # CEAC & CEAF plot
-plot(ceac_obj, 
-     txtsize = 11) + 
-  geom_vline(xintercept = 161.191, linetype = "dotted")+
-  theme(plot.title = element_text(face = "bold", 
-                                  size = 10,
-                                  family =, hjust = 0.5),
-        plot.caption = element_text(hjust = 0,
-                                    colour = "#777777",
-                                    size = 10),
-        panel.background = element_rect(fill = "white", 
-                                        colour = "white", 
-                                        size = 0.15, 
-                                        linetype = "solid"),
-        panel.grid.major = element_line(size = 0.15, 
-                                        linetype = 'solid',
-                                        colour = "white"),
-        legend.position = "bottom") +
-  labs(title = " ",
-       x = "Willingness to Pay (Thousand Mexican pesos / LYs )")
-
-ggsave(paste0("figs/Willingness to Pay ICU",
-              format(Sys.Date(), "%F"), ".png"), 
-       width = 7, height = 5)
 
 
 ## 09.4.3 Expected Loss Curves (ELCs)
-elc_obj <- calc_exp_loss(wtp = v_wtp, psa = psa_obj)
+elc_obj_icu <- calc_exp_loss(wtp = v_wtp, psa = psa_obj_icu)
+
+elc_obj_icu <- elc_obj_icu %>% 
+  rename(`No Treatment` = No.Treatment,
+         `Frontier & EVPI` = Frontier_EVPI)
+
+elc_obj_icu_long <- gather(data = elc_obj_icu,
+                            key = "Strategy", 
+                            value = "Value", 
+                           -WTP) 
+
+elc_obj_icu_long <- elc_obj_icu_long %>% 
+  mutate(Strategy = fct_relevel(Strategy, 
+                                "No Treatment", 
+                                "Dexamethasone"))
 # ELC plot
-plot(elc_obj, log_y = FALSE)
+plot(elc_obj_icu, log_y = FALSE)
+
+

@@ -44,11 +44,11 @@ Costs <- function (l_params, v_M_t, Trt = FALSE) {
   # v_M_t: current health state
   c_t <- c()
   if (Trt == "Remd"){
-    c_t[v_M_t == "Cov19+"]  <- c_hosp + c_remd
+    c_t[v_M_t == "Cov19+"]  <- c_remd
   } else if (Trt == "Remd_Ba"){
-    c_t[v_M_t == "Cov19+"]  <- c_hosp + c_remd + c_bari
+    c_t[v_M_t == "Cov19+"]  <- c_remd + c_bari
   } else if (Trt == "None" | Trt == FALSE){
-    c_t[v_M_t == "Cov19+"]  <- c_hosp 
+    c_t[v_M_t == "Cov19+"]  <- 0 
   } else {
     message("Choose a treatment within the options")
   }
@@ -72,7 +72,8 @@ Effs <- function (l_params, v_M_t) {
   )
 }
 
-CEA_microsim <- function(l_params, df_X, df_h, df_pop_ch, life_expectancy, 
+CEA_microsim <- function(l_params, df_X, df_h, df_pop_ch, df_QALE, 
+                         df_Costs, mean_days,
                          Trt = FALSE) { 
   with(as.list(l_params), {
 
@@ -180,6 +181,13 @@ CEA_microsim <- function(l_params, df_X, df_h, df_pop_ch, life_expectancy,
        
        m_C[m_C < 0] <- 0
        
+       # Cost of hospitalization by patient
+       t_hos_parms <- lnorm_params(m = mean_days, v = (7.17)^2)
+       t_hosp = rlnorm(length(df_X$age), meanlog = t_hos_parms$mu, sdlog = t_hos_parms$sigma)
+       cost_hosp <- matrix(t_hosp*c_hosp, nrow = length(df_X$age), ncol = 1)
+       
+       m_cost_hosp <- mean(cost_hosp)
+       
        Final_outcome <- as.data.frame(m_E) 
        Final_outcome <- Final_outcome %>% 
          select(`cycle 50`)
@@ -187,22 +195,30 @@ CEA_microsim <- function(l_params, df_X, df_h, df_pop_ch, life_expectancy,
        Effects <- cbind(Final_outcome,df_pop_ch)
        
        Effects <- Effects %>% 
-         merge(Life_expectancy, 
+         merge(df_QALEs, 
                by = c("sex" = "sex",
                       "age" = "age")) %>% 
-         mutate(years = ifelse(`cycle 50` == 0, 0, Years_dis))
+         mutate(QALE = ifelse(`cycle 50` == 0, 0, QALYs))
+       
+       Costs <- cbind(Final_outcome,df_pop_ch)
+       
+       Costs <- Costs %>% 
+         merge(df_QALEs, 
+               by = c("sex" = "sex",
+                      "age" = "age")) %>% 
+         mutate(Costs = ifelse(`cycle 50` == 0, 0, dis_costs))
        
        # calculate  
        tc <- m_C %*% v_dwc    # total (discounted) cost per individual
        te <- m_E %*% v_dwe    # total LDs per individual 
-       tc_hat <- mean(tc)     # average (discounted) cost 
-       te_hat <- mean(te)     # average LDs per individual
-       lf_hat <- mean(Effects$years) # average Life years Gained
+       tc_hat <- mean(tc)+ m_cost_hosp + mean(Costs$Costs) # average (discounted) cost 
+       te_hat <- mean(te)           # average LDs per individual
+       lf_hat <- mean(Effects$QALE) # average Life years Gained
        
        # store the results from the simulation in a list
        results <- list(tc_hat = tc_hat, 
                        te_hat = te_hat,
-                       lys_g  = lf_hat)   
+                       qaly_hat  = lf_hat)   
                       
        return(results)  # return the results
   
@@ -210,24 +226,28 @@ CEA_microsim <- function(l_params, df_X, df_h, df_pop_ch, life_expectancy,
   )
 }
 
-CEA_function <- function(l_params, df_X, df_h, df_pop_ch, life_expectancy,
-                         n_wtp = 10267*2*22.10){ # User defined
+CEA_function <- function(l_params, df_X, df_h, df_pop_ch, df_QALE, 
+                         df_Costs, mean_days,
+                         n_wtp = 10267*3*22.10){ # User defined
   with(as.list(l_params), {
     ## Create discounting vectors
     v_names_str = c("No Treatment", "Remdesivir", "Remdesivir & Bariticinib")
     ## Run STM model at a parameter set for each intervention
     model_no_trt  <- CEA_microsim(l_params = l_params, df_X,
-                             df_h, df_pop_ch, life_expectancy, Trt = FALSE)
+                             df_h, df_pop_ch, df_QALE, 
+                             df_Costs, mean_days, Trt = FALSE)
     model_remd    <- CEA_microsim(l_params = l_params, df_X,
-                             df_h, df_pop_ch, life_expectancy, Trt = "Remd")
+                             df_h, df_pop_ch, df_QALE, 
+                             df_Costs, mean_days, Trt = "Remd")
     model_remd_ba <- CEA_microsim(l_params = l_params, df_X, 
-                             df_h, df_pop_ch, life_expectancy, Trt = "Remd_Ba")
+                             df_h, df_pop_ch, df_QALE, 
+                             df_Costs, mean_days, Trt = "Remd_Ba")
 
     ## Vector with total discounted mean Costs and Lys
     v_tc_d      <- c(model_no_trt$tc_hat, model_remd$tc_hat, 
                      model_remd_ba$tc_hat)
-    v_tu_d      <- c(model_no_trt$lys_g, model_remd$lys_g, 
-                     model_remd_ba$lys_g)
+    v_tu_d      <- c(model_no_trt$qaly_hat, model_remd$qaly_hat, 
+                     model_remd_ba$qaly_hat)
     
     ## Vector with discounted net monetary benefits (NMB)
     v_nmb_d     <- v_tu_d * n_wtp - v_tc_d
@@ -248,9 +268,9 @@ Costs_icu <- function (l_params, v_M_t, Trt = FALSE) {
   # v_M_t: current health state
   c_t <- c()
   if (Trt == "Dexa"){
-    c_t[v_M_t == "Cov19+"]  <- c_resp + c_dexa
+    c_t[v_M_t == "Cov19+"]  <- c_dexa
   } else if (Trt == "None" | Trt == FALSE){
-    c_t[v_M_t == "Cov19+"]  <- c_resp 
+    c_t[v_M_t == "Cov19+"]  <- 0 
   } else {
     message("Choose a treatment within the options")
   }
@@ -262,8 +282,8 @@ Costs_icu <- function (l_params, v_M_t, Trt = FALSE) {
   )
 }
 
-CEA_microsim_icu <- function(l_params, df_X, df_h, df_pop_ch, life_expectancy,
-                             Trt = FALSE) { 
+CEA_microsim_icu <- function(l_params, df_X, df_h, df_pop_ch, df_QALE, 
+                             df_Costs, mean_days, Trt = FALSE) { 
   with(as.list(l_params), {
    
     d_h_HD_resp <- df_h # Data frame with specific hazards
@@ -359,6 +379,13 @@ CEA_microsim_icu <- function(l_params, df_X, df_h, df_pop_ch, life_expectancy,
   
   m_C[m_C < 0] <- 0
   
+  # Cost of hospitalization by patient
+  t_hos_parms <- lnorm_params(m = mean_days, v = (13.17)^2)
+  t_hosp = rlnorm(length(df_X$age), meanlog = t_hos_parms$mu, sdlog = t_hos_parms$sigma)
+  cost_resp <- matrix(t_hosp*c_resp, nrow = length(df_X$age), ncol = 1)
+  
+  m_cost_resp <- mean(cost_resp)
+  
   Final_outcome <- as.data.frame(m_E) 
   Final_outcome <- Final_outcome %>% 
     select(`cycle 50`)
@@ -366,24 +393,30 @@ CEA_microsim_icu <- function(l_params, df_X, df_h, df_pop_ch, life_expectancy,
   Effects <- cbind(Final_outcome,df_pop_ch)
   
   Effects <- Effects %>% 
-    merge(Life_expectancy, 
+    merge(df_QALEs, 
           by = c("sex" = "sex",
                  "age" = "age")) %>% 
-    mutate(years = ifelse(`cycle 50` == 0, 0, Years_dis))
-    
-    # calculate  
-    tc <- m_C %*% v_dwc    # total (discounted) cost per individual
-    te <- m_E %*% v_dwe    # total LDs per individual 
-    tc_hat <- mean(tc)     # average (discounted) cost 
-    te_hat <- mean(te)     # average LDs per individual
-    tc_sum <- sum(tc)      # sum (discounted) cost
-    te_sum <- sum(te)      # sum LDs per individual
-    lf_hat <- mean(Effects$years) # average Life years Gained
-    
-    # store the results from the simulation in a list
-    results <- list(tc_hat = tc_hat, 
-                    te_hat = te_hat,
-                    lys_g  = lf_hat)   
+    mutate(QALE = ifelse(`cycle 50` == 0, 0, QALYs))
+  
+  Costs <- cbind(Final_outcome,df_pop_ch)
+  
+  Costs <- Costs %>% 
+    merge(df_QALEs, 
+          by = c("sex" = "sex",
+                 "age" = "age")) %>% 
+    mutate(Costs = ifelse(`cycle 50` == 0, 0, dis_costs))
+  
+  # calculate  
+  tc <- m_C %*% v_dwc    # total (discounted) cost per individual
+  te <- m_E %*% v_dwe    # total LDs per individual 
+  tc_hat <- mean(tc) + m_cost_resp + mean(Costs$Costs)     # average (discounted) cost 
+  te_hat <- mean(te)     # average LDs per individual
+  lf_hat <- mean(Effects$QALE) # average Life years Gained
+  
+  # store the results from the simulation in a list
+  results <- list(tc_hat = tc_hat, 
+                  te_hat = te_hat,
+                  QALYs  = lf_hat)   
     
     return(results)  # return the results
     
@@ -391,20 +424,23 @@ CEA_microsim_icu <- function(l_params, df_X, df_h, df_pop_ch, life_expectancy,
   )
 }
 
-CEA_function_icu <- function(l_params, df_X, df_h, df_pop_ch, life_expectancy,
-                             n_wtp = 10267*2*22.10){ # User defined
+CEA_function_icu <- function(l_params, df_X, df_h, df_pop_ch, df_QALE, 
+                             df_Costs, mean_days, Trt = FALSE,
+                             n_wtp = 10267*22.10){ # User defined
   with(as.list(l_params), {
     ## Create discounting vectors
     v_names_str = c("No Treatment", "Dexamethasone")
     ## Run STM model at a parameter set for each intervention
     model_n_trt    <- CEA_microsim_icu(l_params = l_params, df_X, df_h,  
-                                       df_pop_ch, life_expectancy, Trt = FALSE)
+                                       df_pop_ch, df_QALE, 
+                                       df_Costs, mean_days, Trt = FALSE)
     model_Dexa     <- CEA_microsim_icu(l_params = l_params, df_X, df_h, 
-                                       df_pop_ch, life_expectancy, Trt = "Dexa")
+                                       df_pop_ch, df_QALE, 
+                                       df_Costs, mean_days, Trt = "Dexa")
 
     ## Vector with total discounted mean Costs and LDs
     v_tc_d      <- c(model_n_trt$tc_hat, model_Dexa$tc_hat)
-    v_tu_d      <- c(model_n_trt$lys_g, model_Dexa$lys_g)
+    v_tu_d      <- c(model_n_trt$QALYs, model_Dexa$QALYs)
     
     ## Vector with discounted net monetary benefits (NMB)
     v_nmb_d     <- v_tu_d * n_wtp - v_tc_d

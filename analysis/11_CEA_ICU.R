@@ -26,8 +26,11 @@ load("data/rate_mx.Rdata")
 # Public Data base of suspected people with COVID-19 
 load("data/cov_09_02.Rdata")
 
-# Data with life expectancy
-load("data/Life_expectancy.Rdata")
+# Data with healthcare expenditure for survivals
+load("data/df_Costs.Rdata")
+
+# Data with healthcare expenditure for survivals
+load("data/df_QALEs.Rdata")
 
 # Load functions for microsimulation
 source("R/Functions.R")
@@ -84,7 +87,7 @@ df_pop_ch <- Cohort %>%
 
 Cohort <- Cohort %>% 
   mutate(state = ifelse(intubated == 1, "ICU", "Hosp")) %>%
-  select(c("sex","age_range","state")) %>%
+  select(c("sex","age_range","state", "age")) %>%
   rename(group = age_range) %>% 
   mutate(time = 0)
 
@@ -98,6 +101,7 @@ n_t              <- 50 # time horizon, 50 days
 v_names_states   <- c("Cov19+", "CoV19_Dead", "O_Causes_Dead") # state names
 n_states         <- length(v_names_states)   # number of states
 d_c              <- d_e <- 0.0082 # daily discount rates 
+mean_days        <- 13.89 # Mean Days
 # calculate discount weights for costs for each cycle based on discount rate d_c
 v_dwc <- 1 / (1 + d_c) ^ (0:n_t) 
 # calculate discount weights for effectiveness for each cycle based on discount? 
@@ -160,9 +164,9 @@ Costs <- function (v_M_t, Trt = FALSE) {
   # v_M_t: current health state
   c_t <- c()
   if (Trt == "Dexa"){
-    c_t[v_M_t == "Cov19+"]  <- c_resp + c_dexa
+    c_t[v_M_t == "Cov19+"]  <- c_dexa
   } else if (Trt == "None" | Trt == FALSE){
-    c_t[v_M_t == "Cov19+"]  <- c_resp 
+    c_t[v_M_t == "Cov19+"]  <- 0 
   } else {
     message("Choose a treatment within the options")
   }
@@ -190,7 +194,9 @@ Effs <- function (v_M_t) {
 # These are just starting conditions - they will change with the simulation
 v_M_init  <- rep("Cov19+", n_i)       # everyone begins in the sick state
 
-MicroSim <- function(n_i, df_X, df_pop_ch, life_expectancy, Trt = FALSE) { #t <- 1
+MicroSim <- function(n_i, df_X, df_pop_ch, df_QALE, 
+                     df_Costs, mean_days, Trt = FALSE) { #t <- 1
+  set.seed(29051993)
   m_M <- m_C <- m_E <-  matrix(NA, nrow = n_i, ncol = n_t + 1, 
                                dimnames = list(paste("ind"  , 1:n_i, sep = " "), 
                                                paste("cycle", 0:n_t, sep = " "))) 
@@ -225,6 +231,13 @@ MicroSim <- function(n_i, df_X, df_pop_ch, life_expectancy, Trt = FALSE) { #t <-
   
   m_C[m_C < 0] <- 0
   
+  # Cost of hospitalization by patient
+  t_hos_parms <- lnorm_params(m = mean_days, v = (13.17)^2)
+  t_hosp = rlnorm(length(df_X$age), meanlog = t_hos_parms$mu, sdlog = t_hos_parms$sigma)
+  cost_resp <- matrix(t_hosp*c_resp, nrow = length(df_X$age), ncol = 1)
+  
+  m_cost_resp <- mean(cost_resp)
+  
   Final_outcome <- as.data.frame(m_E) 
   Final_outcome <- Final_outcome %>% 
     select(`cycle 50`)
@@ -232,19 +245,25 @@ MicroSim <- function(n_i, df_X, df_pop_ch, life_expectancy, Trt = FALSE) { #t <-
   Effects <- cbind(Final_outcome,df_pop_ch)
   
   Effects <- Effects %>% 
-    merge(Life_expectancy, 
+    merge(df_QALE, 
           by = c("sex" = "sex",
                  "age" = "age")) %>% 
-    mutate(years = ifelse(`cycle 50` == 0, 0, Years_dis))
+    mutate(QALE = ifelse(`cycle 50` == 0, 0, QALE))
+  
+  Costs <- cbind(Final_outcome,df_pop_ch)
+  
+  Costs <- Costs %>% 
+    merge(df_Costs, 
+          by = c("sex" = "sex",
+                 "age" = "age")) %>% 
+    mutate(Costs = ifelse(`cycle 50` == 0, 0, Costs))
   
   # calculate  
   tc <- m_C %*% v_dwc    # total (discounted) cost per individual
   te <- m_E %*% v_dwe    # total LDs per individual 
-  tc_hat <- mean(tc)     # average (discounted) cost 
+  tc_hat <- mean(tc) + m_cost_resp + mean(Costs$Costs)     # average (discounted) cost 
   te_hat <- mean(te)     # average LDs per individual
-  tc_sum <- sum(tc)      # sum (discounted) cost
-  te_sum <- sum(te)      # sum LDs per individual
-  lf_hat <- mean(Effects$years) # average Life years Gained
+  lf_hat <- mean(Effects$QALE) # average Life years Gained
   
   # store the results from the simulation in a list
   results <- list(m_M = m_M, 
@@ -254,18 +273,22 @@ MicroSim <- function(n_i, df_X, df_pop_ch, life_expectancy, Trt = FALSE) { #t <-
                   te = te, 
                   tc_hat = tc_hat, 
                   te_hat = te_hat,
-                  tc_sum = tc_sum, 
-                  te_sum = te_sum,
-                  Ly_s   = lf_hat)   
+                  QALYs  = lf_hat)   
   
   return(results)  # return the results
   
 } # end of the MicroSim function  
 
-outcomes <- MicroSim(n_i, df_X, df_pop_ch, Life_expectancy, Trt = "Dexa")
+outcomes <- MicroSim(n_i, 
+                     df_X, 
+                     df_pop_ch, 
+                     df_QALE, 
+                     df_Costs, 
+                     mean_days,
+                     Trt = FALSE)
 
 results  <- data.frame("Total Cost" = outcomes$tc_hat, 
-                       "Total Lys" = outcomes$Ly_s)
+                       "Total QALYs" = outcomes$QALYs)
 
 
 

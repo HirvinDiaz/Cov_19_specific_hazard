@@ -935,6 +935,7 @@ df_hazards_hosp <- df_hazards_ICU_hosp %>%
   filter(time <= 50)
 
 df_hazards_hosp$Type[df_hazards_hosp$Type == "Covid_19"] <- "COVID-19"
+df_hazards_hosp$Type[df_hazards_hosp$Type == "Population"] <- "Age & sex specific"
 df_hazards_hosp$sex[df_hazards_hosp$sex == "male"] <- "Male"
 df_hazards_hosp$sex[df_hazards_hosp$sex == "female"] <- "Female"
 
@@ -973,15 +974,12 @@ Hospitalized <- ggplot(filter(df_hazards_hosp,
   scale_x_continuous(breaks = number_ticks(4))+
   scale_y_continuous(breaks = number_ticks(3), limits = c(0,0.085))+
   # axis.text.x = element_text(angle = 90, hjust = 0))+
-  scale_color_manual(values=c ("#120d0c", "#e32402", "#02ebdb")) +
+  scale_color_manual(values=c ("#e32402", "#120d0c", "#02ebdb")) + #120d0c
   labs(title = "Hospitalized, Not Intubated",
        x = " ",
        y = " ",
-       color = "Hazard")
+       color = "Mortality rate")
 
-ggsave(paste0("figs/hazard hospitalized",
-              format(Sys.Date(), "%F"), ".png"), 
-       width = 7, height = 5)
 
 
 
@@ -990,6 +988,7 @@ df_hazards_ICU <- df_hazards_ICU_hosp %>%
   filter(time <= 50)
 
 df_hazards_ICU$Type[df_hazards_ICU$Type == "Covid_19"] <- "COVID-19"
+df_hazards_ICU$Type[df_hazards_ICU$Type == "Population"] <- "Age & sex specific"
 df_hazards_ICU$sex[df_hazards_ICU$sex == "male"] <- "Male"
 df_hazards_ICU$sex[df_hazards_ICU$sex == "female"] <- "Female"
 
@@ -1026,15 +1025,11 @@ ICU <- ggplot(filter(df_hazards_ICU,
   # scale_x_continuous(breaks = number_ticks(4))+
   scale_y_continuous(breaks = number_ticks(3))+
   # axis.text.x = element_text(angle = 90, hjust = 0))+
-  scale_color_manual(values=c ("#120d0c", "#e32402", "#02ebdb")) +
+  scale_color_manual(values=c ("#e32402", "#120d0c", "#02ebdb")) +
   labs(title = "Hospitalized, Intubated",
        x = " ",
        y = " ",
-       color = "Hazard")
-
-ggsave(paste0("figs/hazard intubated",
-              format(Sys.Date(), "%F"), ".png"), 
-       width = 7, height = 5)
+       color = "Mortality rate")
 
 ggarrange(Hospitalized, ICU, ncol = 2, common.legend = TRUE)
 
@@ -1042,3 +1037,20 @@ ggsave(paste0("figs/hazards hosp_ICU",
               format(Sys.Date(), "%F"), ".png"), 
        width = 7, height = 5)
 
+#### Mean rates by group ####
+
+hazard_icu <- df_hazards_ICU_hosp %>% 
+  filter(state == "ICU")
+
+hazard_hosp <- df_hazards_ICU_hosp %>% 
+  filter(state == "Hosp")
+
+unique(hazard_hosp$Type)
+
+mean(hazard_hosp$Hazard[hazard_hosp$sex == "female" & hazard_hosp$Type == "Covid_19"])*100000
+
+mean(hazard_icu$Hazard[hazard_icu$sex == "female" & hazard_icu$Type == "Covid_19"])*100000
+
+mean(df_hazards_ICU_hosp$Hazard[df_hazards_ICU_hosp$sex == "male" & df_hazards_ICU_hosp$Type == "Covid_19"])*100000
+
+mean(df_hazards_ICU_hosp$Hazard[df_hazards_ICU_hosp$sex == "female" & df_hazards_ICU_hosp$Type == "Covid_19"])*100000

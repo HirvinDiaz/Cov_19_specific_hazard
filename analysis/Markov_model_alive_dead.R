@@ -68,7 +68,7 @@ df_hmd_MX_2020 <- read.csv("data-raw/df_mortrate_state_age_sex.csv") %>%
 df_p_AD <- df_hmd_MX_2020 %>% 
   select("age", "sex", "mort_rate") %>% 
   rename(r_AD = mort_rate) %>% 
-  filter(age <= 100)
+  filter(age <= 101)
 
 # calculate probability from death rate
 df_p_AD$p_AD <- 1-exp(-df_p_AD$r_AD)
@@ -205,25 +205,24 @@ results  <- data.frame("Total Cost" = outcomes$tc_hat,
 ###############################################################################
 
 df_cost   <- as.data.frame(matrix(0, 
-                                nrow = 10,
+                                nrow = 5,
                                 ncol = 1))
 
 df_effect <- as.data.frame(matrix(0, 
-                                nrow = 10,
+                                nrow = 5,
                                 ncol = 1))
 
 
 ## Model ####
-
-for (i in 70:79) {
+for (i in 45:49) {
   #### Data wrangling ####
   Cov_H <- Cov %>% 
-    filter(age == i & sex == "Female") %>% 
+    filter(age == i & sex == "Male") %>% 
     select(c(2,5))
   
   # Model structure
   n_i       <- length(Cov_H$sex)      # number of individuals
-  n_t       <- 100 - i                 # number of cycles
+  n_t       <- 101 - i                 # number of cycles
   
   # calculate discount weights for costs for each cycle based on discount rate d_c
   v_dwc <- 1 / (1 + d_e) ^ (0:n_t) 
@@ -233,8 +232,31 @@ for (i in 70:79) {
   # Costs and utilities inputs 
   c_A  <- 11483.3                 # cost of remaining one cycle Alive
   c_D  <- 0                       # cost of remaining one cycle Dead
-  u_A  <- 0.790                   # utility when Alive 
+  u_A  <- 0.871	                  # utility when Alive 
   u_D  <- 0                       # utility when Sick
+  
+  Probs <- function(v_M_t, df_X, t) { 
+    # M_t  :  current health states
+    # v_ai :  initial ages
+    # v_sex:  sexes
+    # t    :  cycle
+    # create matrix of state transition probabilities
+    m_p_t           <- matrix(0, nrow = n_s, ncol = n_i) 
+    # give the state names to the rows
+    rownames(m_p_t) <-  v_names_states
+    
+    # lookup probability baseline probability of dying based on individual characteristics
+    p_die_base <- dtb_p_AD[.(df_X$age + t, df_X$sex), p_AD]  # <- how you index a data table
+    p_die      <- p_die_base[v_M_t == "Alive"]
+    
+    # transition probabilities when Alive
+    m_p_t[, v_M_t == "Alive"] <- rbind(1 - (p_die), p_die) 
+    # transition probabilities when Dead
+    m_p_t[, v_M_t == "Dead"] <- rbind(0, 1)
+    
+    return(t(m_p_t))
+  }
+  
   
   # Costs function: 
   # calculates the cost accrued by an individual this cycle
@@ -312,10 +334,16 @@ for (i in 70:79) {
   } # end of the MicroSim function  
   outcomes <- MicroSim(n_i, df_X, seed = 1)
   
-  df_cost[i-69, 1] <- outcomes$tc_hat
-  df_effect[i-69, 1] <- outcomes$te_hat
+  df_cost[i-44, 1] <- outcomes$tc_hat
+  df_effect[i-44, 1] <- outcomes$te_hat
   
 }
 
 df_cost
 df_effect
+
+
+
+# Modelo Markov, asignando la edad inicial, 
+# no hay error en la estimacion de esperanza de vida promedio
+# Tabla de age-sepcific hazard y age specific-utilities.
