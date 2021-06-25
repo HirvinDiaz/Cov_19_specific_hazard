@@ -289,7 +289,7 @@ CEAC_hosp <- ggplot()+
                      labels=dollar_format(prefix="$")) +
   scale_color_manual(values=c ("#eb542f", "#2cc9de", "#575c59")) +
   scale_shape_manual(name = NULL, values = 0, labels = "Frontier") +
-  labs(title = "Hospitalized, Not intubated",
+  labs(
        x = "Willingness-to-Pay Threshold, $ Mexican pesos/QALY",
        y = "Probability of being Cost-Effective")
 
@@ -342,12 +342,14 @@ CEAC_icu <- ggplot()+
   scale_x_continuous(breaks = number_ticks(4), labels=dollar_format(prefix="$")) +
   scale_color_manual(values=c ("#eb542f", "#575c59")) +
   scale_shape_manual(name = NULL, values = 0, labels = "Frontier") +
-  labs(title = "Hospitalized, Intubated",
+  labs(
        x = "Willingness-to-Pay Threshold, $ Mexican pesos/QALY",
        y = "Probability of being Cost-Effective")
 
 
-ggarrange(CEAC_hosp, CEAC_icu, ncol = 1)
+gg_arrange_ceaf <- ggarrange(CEAC_hosp, CEAC_icu, ncol = 1)
+
+gg_arrange_not_int <- ggarrange(CEAC_hosp, CEAC_icu, ncol = 2, common.legend = TRUE)
 
 ggsave(paste0("figs/CEACs_label",
               format(Sys.Date(), "%F"), ".png"), 
@@ -493,7 +495,7 @@ GG_EVPI_hosp <- ggplot()+
                      labels=dollar_format(prefix="$")) +
   scale_color_manual(values=c ("#575c59", "#2cc9de", "#eb542f")) +
   scale_shape_manual(name = NULL, values = 0, labels = "Frontier & EVPI") +
-  labs(title = "Hospitalized, Not intubated",
+  labs(
        x = "Willingness-to-Pay Threshold, $ Mexican pesos/QALY",
        y = "Expected Loss ($)")
 
@@ -541,15 +543,33 @@ GG_EVPI_icu <- ggplot()+
                      labels=dollar_format(prefix="$")) +
   scale_color_manual(values=c ("#eb542f", "#575c59", "#eb542f")) +
   scale_shape_manual(name = NULL, values = 0, labels = "Frontier & EVPI") +
-  labs(title = "Hospitalized, Intubated",
+  labs(
        x = "Willingness-to-Pay Threshold, $ Mexican pesos/QALY",
        y = "Expected Loss ($)")
 
-ggarrange(GG_EVPI_hosp, GG_EVPI_icu, ncol = 1)
+gg_arrange_evpi <-  ggarrange(GG_EVPI_hosp, GG_EVPI_icu, ncol = 1)
 
-ggsave(paste0("figs/EVPI",
+gg_arrange_not_int <- ggarrange(CEAC_hosp, GG_EVPI_hosp, ncol = 2)
+
+gg_arrange_hosp <- annotate_figure(gg_arrange_not_int, 
+                                   top = text_grob("Hospitalized, not Intubated", 
+                                                   color = "Black", 
+                                                   face = "bold", 
+                                                   size = 14))
+
+gg_arrange_int <- ggarrange(CEAC_icu, GG_EVPI_icu, ncol = 2)
+
+gg_arrange_icu <- annotate_figure(gg_arrange_int, 
+                                   top = text_grob("Hospitalized, Intubated", 
+                                                   color = "Black", 
+                                                   face = "bold", 
+                                                   size = 14))
+
+ggarrange(gg_arrange_hosp, gg_arrange_icu, ncol = 1)
+
+ggsave(paste0("figs/CEACF & EVPI",
               format(Sys.Date(), "%F"), ".png"), 
-       width = 7, height = 10)
+       width = 14, height = 10)
 
 #### Deterministic Sensitivity Analysis ####
 o_hosp$parameter[o_hosp$parameter == "hr_Remd"] <- "HR Remdesivir" 

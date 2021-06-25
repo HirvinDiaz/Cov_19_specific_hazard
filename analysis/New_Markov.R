@@ -23,7 +23,7 @@ u_45_49_f <- 0.863
 u_50_59_f <- 0.837
 u_60_69_f <- 0.811
 u_70_79_f <- 0.771
-u_80_100_f <- 0.724
+u_80_100_f <- st0.724
 
 
 df_hmd_MX_2020 <- read.csv("data-raw/df_mortrate_state_age_sex.csv") %>% 
